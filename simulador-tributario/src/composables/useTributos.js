@@ -11,30 +11,9 @@ const tabelas = {
   anexoV: [ { ate: 180000, aliquota: 0.155, deduzir: 0 }, { ate: 360000, aliquota: 0.18, deduzir: 4500 }, { ate: 720000, aliquota: 0.195, deduzir: 9900 }, { ate: 1800000, aliquota: 0.205, deduzir: 17100 }, { ate: 3600000, aliquota: 0.23, deduzir: 62100 }, { ate: 4800000, aliquota: 0.305, deduzir: 540000 }, ],
 };
 
-// ... (o resto da configuração permanece o mesmo)
-const encargoConfig = {
-    ipi: { base: 'faturamento' }, iss: { base: 'faturamento' }, icms: { base: 'faturamento' }, rat: { base: 'folha' }, inss: { base: 'folha' }, inssTerceiros: { base: 'folha' }, fgts: { base: 'folha' },
-    icmsInterno: { base: 'faturamento' }, icmsInterestadual: { base: 'faturamento' }, icmsImportacao: { base: 'faturamento' }, ipiEntrada: { base: 'faturamento' },
-};
-
 
 export function useTributos() {
     const resultados = ref(null);
-    
-    // As funções auxiliares getEncargos e getDespesas não mudam
-    function getEncargosAdicionaisAnual(inputs) {
-        let totalEncargos = 0;
-        const faturamentoAnual = inputs.faturamentoAnual;
-        const folhaAnual = inputs.despesas.salarios + inputs.despesas.proLabore;
-
-        for (const key in inputs.encargos) {
-            const config = encargoConfig[key];
-            const percentValue = inputs.encargos[key];
-            const base = config.base === 'folha' ? folhaAnual : faturamentoAnual;
-            totalEncargos += base * (percentValue / 100);
-        }
-        return totalEncargos;
-    }
     
     function getDespesasOperacionaisAnual(inputs) {
         return Object.values(inputs.despesas).reduce((acc, valor) => acc + (valor || 0), 0);
@@ -96,19 +75,8 @@ export function useTributos() {
             return { valorImpostos: 0, cargaTributariaPercentual: 0 };
         }
 
-        const iss = faturamentoAnual * (encargos.iss / 100);
-
-
-        const folhaTotal = despesas.salarios + despesas.proLabore;
-
-        const baseFolhaSalarios = despesas.salarios; 
-
-        const inss = folhaTotal * (encargos.inss / 100);
-        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
-        const rat = baseFolhaSalarios * (encargos.rat / 100);
-        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
-
-        const basePresuncao = 0.32; 
+        // --- CÁLCULO DOS IMPOSTOS FEDERAIS (PIS, COFINS, IRPJ, CSLL) ---
+        const basePresuncao = 0.32; // Para serviços
         const pis = faturamentoAnual * 0.0065;
         const cofins = faturamentoAnual * 0.03;
         
@@ -120,9 +88,37 @@ export function useTributos() {
             irpj += (baseCalculoIRPJCSLL - limiteAdicionalAnual) * 0.10;
         }
         const csll = baseCalculoIRPJCSLL * 0.09;
-        
-        const valorImpostos = pis + cofins + irpj + csll + iss + inss + inssTerceiros + rat + fgts;
-        
+
+        const impostosFederais = pis + cofins + irpj + csll;
+
+        // --- CÁLCULO DE TODOS OS OUTROS ENCARGOS E IMPOSTOS ADICIONAIS ---
+        const folhaTotal = despesas.salarios + despesas.proLabore;
+        const baseFolhaSalarios = despesas.salarios;
+
+        // Encargos sobre o Faturamento
+        const iss = faturamentoAnual * (encargos.iss / 100);
+        const icms = faturamentoAnual * (encargos.icms / 100);
+        const ipi = faturamentoAnual * (encargos.ipi / 100);
+        // Nota: Os ICMS/IPI específicos de entrada/saída não costumam entrar na carga tributária geral
+        // de serviço no Presumido, mas mantive o cálculo caso seu modelo de negócio precise.
+        const icmsInterno = faturamentoAnual * (encargos.icmsInterno / 100);
+        const icmsInterestadual = faturamentoAnual * (encargos.icmsInterestadual / 100);
+        const icmsImportacao = faturamentoAnual * (encargos.icmsImportacao / 100);
+        const ipiEntrada = faturamentoAnual * (encargos.ipiEntrada / 100);
+
+        // Encargos sobre a Folha de Pagamento
+        const inss = folhaTotal * (encargos.inss / 100);
+        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
+        const rat = baseFolhaSalarios * (encargos.rat / 100);
+        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
+
+        // Soma de todos os encargos adicionais
+        const outrosEncargos = 
+            iss + icms + ipi + icmsInterno + icmsInterestadual + icmsImportacao + ipiEntrada +
+            inss + inssTerceiros + rat + fgts;
+
+        // --- SOMA FINAL ---
+        const valorImpostos = impostosFederais + outrosEncargos;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
 
         return { valorImpostos, cargaTributariaPercentual };
@@ -133,6 +129,7 @@ export function useTributos() {
 
         if (!faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0 };
 
+        // --- CÁLCULO DE PIS/COFINS NÃO-CUMULATIVO (COM CRÉDITOS) ---
         const baseCalculoCreditos = 
             despesas.comprasInternas +
             despesas.comprasInterestaduais +
@@ -143,32 +140,41 @@ export function useTributos() {
 
         const pisDebito = faturamentoAnual * 0.0165;
         const cofinsDebito = faturamentoAnual * 0.076;
-
         const pisCredito = baseCalculoCreditos * 0.0165;
         const cofinsCredito = baseCalculoCreditos * 0.076;
-        
         const pisDevido = Math.max(0, pisDebito - pisCredito);
         const cofinsDevido = Math.max(0, cofinsDebito - cofinsCredito);
-
         const impostosSobreReceita = pisDevido + cofinsDevido;
         
-
-        const iss = faturamentoAnual * (encargos.iss / 100);
+        // --- CÁLCULO DE TODOS OS OUTROS ENCARGOS E IMPOSTOS ADICIONAIS ---
         const folhaTotal = despesas.salarios + despesas.proLabore;
         const baseFolhaSalarios = despesas.salarios;
+        
+        // Encargos sobre o Faturamento
+        const iss = faturamentoAnual * (encargos.iss / 100);
+        const icms = faturamentoAnual * (encargos.icms / 100);
+        const ipi = faturamentoAnual * (encargos.ipi / 100);
+        const icmsInterno = faturamentoAnual * (encargos.icmsInterno / 100);
+        const icmsInterestadual = faturamentoAnual * (encargos.icmsInterestadual / 100);
+        const icmsImportacao = faturamentoAnual * (encargos.icmsImportacao / 100);
+        const ipiEntrada = faturamentoAnual * (encargos.ipiEntrada / 100);
+
+        // Encargos sobre a Folha de Pagamento
         const inss = folhaTotal * (encargos.inss / 100);
         const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
         const rat = baseFolhaSalarios * (encargos.rat / 100);
         const fgts = baseFolhaSalarios * (encargos.fgts / 100);
 
-        const outrosEncargos = iss + inss + inssTerceiros + rat + fgts;
+        // Soma de todos os encargos adicionais
+        const outrosEncargos = 
+            iss + icms + ipi + icmsInterno + icmsInterestadual + icmsImportacao + ipiEntrada +
+            inss + inssTerceiros + rat + fgts;
 
-
+        // --- CÁLCULO DO IRPJ E CSLL ---
         const despesasAnual = getDespesasOperacionaisAnual(inputs);
-        const encargosAnual = getEncargosAdicionaisAnual(inputs); 
-        
-
-        const lucroAntesIRCS = faturamentoAnual - despesasAnual - encargosAnual - impostosSobreReceita;
+        // Nota: A variável 'outrosEncargos' e a função 'getEncargosAdicionaisAnual' calculam a mesma coisa.
+        // Usaremos 'outrosEncargos' que já calculamos para clareza.
+        const lucroAntesIRCS = faturamentoAnual - despesasAnual - outrosEncargos - impostosSobreReceita;
 
         let irpj = 0; 
         let csll = 0;
@@ -181,6 +187,7 @@ export function useTributos() {
             csll = lucroAntesIRCS * 0.09;
         }
         
+        // --- SOMA FINAL ---
         const valorImpostos = impostosSobreReceita + irpj + csll + outrosEncargos;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
         
