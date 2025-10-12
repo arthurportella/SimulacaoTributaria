@@ -28,7 +28,7 @@
 /* Estilos de base para toda a aplicação */
 body {
   margin: 0;
-  background-color: var(--cor-fundo);
+  background-color: var(--cor-borda); 
   font-family: 'Poppins', sans-serif;
   color: var(--cor-texto);
   -webkit-font-smoothing: antialiased;
