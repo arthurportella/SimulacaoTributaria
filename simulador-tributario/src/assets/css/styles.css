@@ -1,0 +1,40 @@
+/* src/assets/styles.css */
+
+/* Importando uma fonte moderna do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+/* Definindo nossa paleta de cores e variáveis globais */
+:root {
+  --cor-primaria: #6d28d9; /* Roxo principal */
+  --cor-primaria-leve: #8b5cf6; /* Roxo mais claro para hover */
+  --cor-fundo: #f3f4f6; /* Cinza bem claro */
+  --cor-card: #ffffff;
+  --cor-texto: #1f2937;
+  --cor-texto-suave: #6b7280;
+  --cor-borda: #e5e7eb;
+
+  /* Cores para o ranking */
+  --cor-bom-fundo: #dcfce7;
+  --cor-bom-borda: #22c55e;
+  --cor-medio-fundo: #fef9c3;
+  --cor-medio-borda: #f59e0b;
+  --cor-ruim-fundo: #fee2e2;
+  --cor-ruim-borda: #ef4444;
+
+  --sombra-card: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --raio-borda: 0.75rem; /* 12px */
+}
+
+/* Estilos de base para toda a aplicação */
+body {
+  margin: 0;
+  background-color: var(--cor-fundo);
+  font-family: 'Poppins', sans-serif;
+  color: var(--cor-texto);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
