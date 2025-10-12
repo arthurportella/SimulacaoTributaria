@@ -41,16 +41,15 @@ export function useTributos() {
     }
 
     function calcularSimplesNacional(inputs) {
-        const { rbt12, faturamentoAnual, anexoSimples } = inputs;
-        // ALTERAÇÃO: Adicionado folhaPagamento12m para o Fator R
-        const folhaPagamento12m = inputs.despesas.salarios + inputs.despesas.proLabore;
+        const { rbt12, faturamentoAnual, anexoSimples, despesas, encargos } = inputs;
+
+        const folhaPagamento12m = despesas.salarios + despesas.proLabore;
 
         if (!rbt12 || !faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0, anexo: 'N/A' };
         
         let anexoCalculado = anexoSimples;
         let nomeAnexo = anexoSimples.replace('anexo', '');
 
-        // Lógica do Fator R
         if (anexoSimples === 'anexoIII' && rbt12 > 0) {
             const fatorR = folhaPagamento12m / rbt12;
             if (fatorR < 0.28) { 
@@ -68,15 +67,29 @@ export function useTributos() {
         const { aliquota, deduzir } = faixa;
         const aliquotaEfetiva = rbt12 > 0 ? ((rbt12 * aliquota) - deduzir) / rbt12 : 0;
         
-        // ALTERAÇÃO: Cálculo focado apenas no imposto
-        const valorImpostos = faturamentoAnual * aliquotaEfetiva;
+        const impostoPrincipalDAS = faturamentoAnual * aliquotaEfetiva;
+
+
+        const fgts = despesas.salarios * (encargos.fgts / 100);
+
+        const sublimite = 3600000;
+        let issForaDoSimples = 0;
+        let icmsForaDoSimples = 0;
+
+        if (faturamentoAnual > sublimite) {
+            // Se a receita ultrapassa 3.6M, calculamos ISS e ICMS por fora
+            issForaDoSimples = faturamentoAnual * (encargos.iss / 100);
+            icmsForaDoSimples = faturamentoAnual * (encargos.icms / 100);
+        }
+
+        const valorImpostos = impostoPrincipalDAS + fgts + issForaDoSimples + icmsForaDoSimples;
+        
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
 
         return { valorImpostos, cargaTributariaPercentual, anexo: nomeAnexo.toUpperCase() };
     }
 
     function calcularLucroPresumido(inputs) {
-        // Desestruturamos os inputs para facilitar o acesso
         const { faturamentoAnual, despesas, encargos } = inputs;
 
         if (!faturamentoAnual) {
@@ -116,14 +129,10 @@ export function useTributos() {
     }
 
     function calcularLucroReal(inputs) {
-        // Desestruturamos para facilitar o acesso
         const { faturamentoAnual, despesas, encargos } = inputs;
 
-        // 1. CORREÇÃO: Removido o ']' extra no final da linha
         if (!faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0 };
 
-        // 2. CÁLCULO DE PIS/COFINS (Sua lógica, agora ativada)
-        // Base de cálculo para os créditos
         const baseCalculoCreditos = 
             despesas.comprasInternas +
             despesas.comprasInterestaduais +
@@ -132,21 +141,18 @@ export function useTributos() {
             despesas.energiaAluguelFretes +
             despesas.depreciacao;
 
-        // Débito (sobre faturamento)
         const pisDebito = faturamentoAnual * 0.0165;
         const cofinsDebito = faturamentoAnual * 0.076;
 
-        // Crédito (sobre despesas)
         const pisCredito = baseCalculoCreditos * 0.0165;
         const cofinsCredito = baseCalculoCreditos * 0.076;
         
-        // Valor devido (Débito - Crédito), garantindo que não seja negativo
         const pisDevido = Math.max(0, pisDebito - pisCredito);
         const cofinsDevido = Math.max(0, cofinsDebito - cofinsCredito);
 
         const impostosSobreReceita = pisDevido + cofinsDevido;
         
-        // 3. CÁLCULO DOS OUTROS ENCARGOS (Sua lógica, agora ativada)
+
         const iss = faturamentoAnual * (encargos.iss / 100);
         const folhaTotal = despesas.salarios + despesas.proLabore;
         const baseFolhaSalarios = despesas.salarios;
@@ -157,11 +163,11 @@ export function useTributos() {
 
         const outrosEncargos = iss + inss + inssTerceiros + rat + fgts;
 
-        // 4. CÁLCULO DO IRPJ E CSLL (Lógica original mantida, mas ajustada)
+
         const despesasAnual = getDespesasOperacionaisAnual(inputs);
-        const encargosAnual = getEncargosAdicionaisAnual(inputs); // Essa função já calcula 'outrosEncargos'
+        const encargosAnual = getEncargosAdicionaisAnual(inputs); 
         
-        // O lucro é a Receita menos as Despesas, Encargos e o PIS/COFINS efetivamente pago.
+
         const lucroAntesIRCS = faturamentoAnual - despesasAnual - encargosAnual - impostosSobreReceita;
 
         let irpj = 0; 
@@ -175,7 +181,6 @@ export function useTributos() {
             csll = lucroAntesIRCS * 0.09;
         }
         
-        // 5. SOMA FINAL (com todos os valores)
         const valorImpostos = impostosSobreReceita + irpj + csll + outrosEncargos;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
         
