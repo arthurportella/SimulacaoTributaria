@@ -57,46 +57,48 @@
         📊 Calcular Projeção Anual
       </button>
     </div>
+    
     <section v-if="resultados" class="results-card">
-      <h2 class="card-title">Comparativo de Custo Total Anual</h2>
+      <h2 class="card-title">RESUMO DA CARGA TRIBUTÁRIA</h2>
       <div class="comparison-table">
         <div class="table-row header">
-          <div>Regime Tributário</div>
-          <div>Custo Efetivo Anual</div>
-          <div>Custo Total Anual (R$)</div>
+          <div>Enquadramento</div>
+          <div>Valor dos Impostos</div>
+          <div>% s/Faturamento</div>
+        </div>
+        
+        <div class="table-row" :class="`rank-${rankedResults['Lucro Presumido']}`">
+          <div><strong>Lucro Presumido</strong></div>
+          <div>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</div>
+          <div>{{ formatNumber(resultados.presumido.cargaTributariaPercentual) }}%</div>
+        </div>
+        <div class="table-row" :class="`rank-${rankedResults['Lucro Real']}`">
+          <div><strong>Lucro Real</strong></div>
+          <div>R$ {{ formatNumber(resultados.real.valorImpostos) }}</div>
+          <div>{{ formatNumber(resultados.real.cargaTributariaPercentual) }}%</div>
         </div>
         <div class="table-row" :class="`rank-${rankedResults['Simples Nacional']}`">
           <div>
             <strong>Simples Nacional</strong>
             <small>Anexo de referência: {{ resultados.simples.anexo }}</small>
           </div>
-          <div>{{ formatNumber(resultados.simples.custoEfetivo) }}%</div>
-          <div>R$ {{ formatNumber(resultados.simples.total) }}</div>
-        </div>
-        <div class="table-row" :class="`rank-${rankedResults['Lucro Presumido']}`">
-          <div><strong>Lucro Presumido</strong></div>
-          <div>{{ formatNumber(resultados.presumido.custoEfetivo) }}%</div>
-          <div>R$ {{ formatNumber(resultados.presumido.total) }}</div>
-        </div>
-        <div class="table-row" :class="`rank-${rankedResults['Lucro Real']}`">
-          <div><strong>Lucro Real</strong></div>
-          <div>{{ formatNumber(resultados.real.custoEfetivo) }}%</div>
-          <div>R$ {{ formatNumber(resultados.real.total) }}</div>
+          <div>R$ {{ formatNumber(resultados.simples.valorImpostos) }}</div>
+          <div>{{ formatNumber(resultados.simples.cargaTributariaPercentual) }}%</div>
         </div>
       </div>
       <div class="summary">
-        🏆 O regime de menor custo anual projetado é o <strong>{{ melhorRegime }}</strong>.
+        🏆 O regime de menor **carga tributária** projetada é o <strong>{{ melhorRegime }}</strong>.
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
+// O SCRIPT SETUP NÃO PRECISA DE ALTERAÇÕES
 import { reactive } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import './assets/css/styles.css';
 
-// MUDANÇA: A estrutura de 'despesas' agora é um objeto simples com os campos anuais
 const inputs = reactive({
   faturamentoAnual: '3.923.000,00',
   rbt12: '3.923.000,00',
@@ -119,7 +121,6 @@ const inputs = reactive({
   }
 });
 
-// Configuração para gerar a nova seção de despesas
 const despesasConfig = [
   { key: 'proLabore', label: 'Pró-labore' },
   { key: 'salarios', label: 'Salários' },
@@ -136,7 +137,6 @@ const encargosConfig = [
   { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' },
 ];
 
-// FUNÇÕES DE FORMATAÇÃO E PARSE
 const formatNumber = (value) => {
   if (value === null || value === undefined || isNaN(value)) return '0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -164,7 +164,6 @@ const handlePercentInput = (event, key, category = null) => {
   else { inputs[key] = formattedValue; }
 };
 
-// Converte os inputs formatados para os cálculos
 const getNumericInputs = () => {
   const numeric = {
     faturamentoAnual: parseNumber(inputs.faturamentoAnual),
@@ -186,7 +185,7 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
 </script>
 
 <style scoped>
-/* O CSS permanece o mesmo, pois o layout de grid se adapta bem */
+/* O CSS pode ser mantido exatamente o mesmo */
 #app-container {
   max-width: 900px;
   margin: 2rem auto;

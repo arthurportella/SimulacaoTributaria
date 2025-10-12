@@ -11,14 +11,17 @@ const tabelas = {
   anexoV: [ { ate: 180000, aliquota: 0.155, deduzir: 0 }, { ate: 360000, aliquota: 0.18, deduzir: 4500 }, { ate: 720000, aliquota: 0.195, deduzir: 9900 }, { ate: 1800000, aliquota: 0.205, deduzir: 17100 }, { ate: 3600000, aliquota: 0.23, deduzir: 62100 }, { ate: 4800000, aliquota: 0.305, deduzir: 540000 }, ],
 };
 
+// ... (o resto da configuração permanece o mesmo)
 const encargoConfig = {
     ipi: { base: 'faturamento' }, iss: { base: 'faturamento' }, icms: { base: 'faturamento' }, rat: { base: 'folha' }, inss: { base: 'folha' }, inssTerceiros: { base: 'folha' }, fgts: { base: 'folha' },
     icmsInterno: { base: 'faturamento' }, icmsInterestadual: { base: 'faturamento' }, icmsImportacao: { base: 'faturamento' }, ipiEntrada: { base: 'faturamento' },
 };
 
+
 export function useTributos() {
     const resultados = ref(null);
     
+    // As funções auxiliares getEncargos e getDespesas não mudam
     function getEncargosAdicionaisAnual(inputs) {
         let totalEncargos = 0;
         const faturamentoAnual = inputs.faturamentoAnual;
@@ -33,75 +36,136 @@ export function useTributos() {
         return totalEncargos;
     }
     
-    // CORREÇÃO #1: A função agora simplesmente soma os valores, pois já são anuais
     function getDespesasOperacionaisAnual(inputs) {
         return Object.values(inputs.despesas).reduce((acc, valor) => acc + (valor || 0), 0);
     }
 
     function calcularSimplesNacional(inputs) {
-        const { rbt12, faturamentoAnual, anexoSimples, folhaPagamento12m } = inputs;
-        if (!rbt12 || !faturamentoAnual) return { total: 0, custoEfetivo: 0, anexo: 'N/A' };
+        const { rbt12, faturamentoAnual, anexoSimples } = inputs;
+        // ALTERAÇÃO: Adicionado folhaPagamento12m para o Fator R
+        const folhaPagamento12m = inputs.despesas.salarios + inputs.despesas.proLabore;
+
+        if (!rbt12 || !faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0, anexo: 'N/A' };
         
         let anexoCalculado = anexoSimples;
         let nomeAnexo = anexoSimples.replace('anexo', '');
+
+        // Lógica do Fator R
         if (anexoSimples === 'anexoIII' && rbt12 > 0) {
             const fatorR = folhaPagamento12m / rbt12;
-            if (fatorR < 0.28) { anexoCalculado = 'anexoV'; nomeAnexo = 'V'; }
+            if (fatorR < 0.28) { 
+                anexoCalculado = 'anexoV'; 
+                nomeAnexo = 'V (pelo Fator R)'; 
+            } else {
+                nomeAnexo = 'III';
+            }
         }
         
         const tabela = tabelas[anexoCalculado];
-        if(!tabela) return { total: 0, custoEfetivo: 0, anexo: 'Inválido' };
+        if(!tabela) return { valorImpostos: 0, cargaTributariaPercentual: 0, anexo: 'Inválido' };
+
         const faixa = tabela.find(f => rbt12 <= f.ate) || tabela[tabela.length - 1];
         const { aliquota, deduzir } = faixa;
         const aliquotaEfetiva = rbt12 > 0 ? ((rbt12 * aliquota) - deduzir) / rbt12 : 0;
         
-        const impostoSimplesAnual = faturamentoAnual * aliquotaEfetiva;
-        const encargosAnual = getEncargosAdicionaisAnual(inputs);
-        const despesasAnual = getDespesasOperacionaisAnual(inputs);
-        
-        const total = impostoSimplesAnual + despesasAnual + encargosAnual;
-        const custoEfetivo = faturamentoAnual > 0 ? total / faturamentoAnual : 0;
+        // ALTERAÇÃO: Cálculo focado apenas no imposto
+        const valorImpostos = faturamentoAnual * aliquotaEfetiva;
+        const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
 
-        return { total, custoEfetivo, anexo: nomeAnexo.toUpperCase() };
+        return { valorImpostos, cargaTributariaPercentual, anexo: nomeAnexo.toUpperCase() };
     }
 
     function calcularLucroPresumido(inputs) {
-        const { faturamentoAnual } = inputs;
-        if (!faturamentoAnual) return { total: 0, custoEfetivo: 0 };
-        const basePresuncao = 0.32;
+        // Desestruturamos os inputs para facilitar o acesso
+        const { faturamentoAnual, despesas, encargos } = inputs;
+
+        if (!faturamentoAnual) {
+            return { valorImpostos: 0, cargaTributariaPercentual: 0 };
+        }
+
+        const iss = faturamentoAnual * (encargos.iss / 100);
+
+
+        const folhaTotal = despesas.salarios + despesas.proLabore;
+
+        const baseFolhaSalarios = despesas.salarios; 
+
+        const inss = folhaTotal * (encargos.inss / 100);
+        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
+        const rat = baseFolhaSalarios * (encargos.rat / 100);
+        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
+
+        const basePresuncao = 0.32; 
         const pis = faturamentoAnual * 0.0065;
         const cofins = faturamentoAnual * 0.03;
-        const baseCalculoIRPJCSLL = faturamentoAnual * basePresuncao;
         
+        const baseCalculoIRPJCSLL = faturamentoAnual * basePresuncao;
         const limiteAdicionalAnual = 240000;
+        
         let irpj = baseCalculoIRPJCSLL * 0.15;
         if (baseCalculoIRPJCSLL > limiteAdicionalAnual) {
             irpj += (baseCalculoIRPJCSLL - limiteAdicionalAnual) * 0.10;
         }
         const csll = baseCalculoIRPJCSLL * 0.09;
         
-        const impostoPresumidoAnual = pis + cofins + irpj + csll;
-        const encargosAnual = getEncargosAdicionaisAnual(inputs);
-        const despesasAnual = getDespesasOperacionaisAnual(inputs);
+        const valorImpostos = pis + cofins + irpj + csll + iss + inss + inssTerceiros + rat + fgts;
         
-        const total = impostoPresumidoAnual + despesasAnual + encargosAnual;
-        const custoEfetivo = faturamentoAnual > 0 ? total / faturamentoAnual : 0;
+        const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
 
-        return { total, custoEfetivo };
+        return { valorImpostos, cargaTributariaPercentual };
     }
 
     function calcularLucroReal(inputs) {
-        const { faturamentoAnual } = inputs;
-        if (!faturamentoAnual) return { total: 0, custoEfetivo: 0 };
+        // Desestruturamos para facilitar o acesso
+        const { faturamentoAnual, despesas, encargos } = inputs;
 
+        // 1. CORREÇÃO: Removido o ']' extra no final da linha
+        if (!faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0 };
+
+        // 2. CÁLCULO DE PIS/COFINS (Sua lógica, agora ativada)
+        // Base de cálculo para os créditos
+        const baseCalculoCreditos = 
+            despesas.comprasInternas +
+            despesas.comprasInterestaduais +
+            despesas.comprasImportadas +
+            despesas.insumoServicos +
+            despesas.energiaAluguelFretes +
+            despesas.depreciacao;
+
+        // Débito (sobre faturamento)
+        const pisDebito = faturamentoAnual * 0.0165;
+        const cofinsDebito = faturamentoAnual * 0.076;
+
+        // Crédito (sobre despesas)
+        const pisCredito = baseCalculoCreditos * 0.0165;
+        const cofinsCredito = baseCalculoCreditos * 0.076;
+        
+        // Valor devido (Débito - Crédito), garantindo que não seja negativo
+        const pisDevido = Math.max(0, pisDebito - pisCredito);
+        const cofinsDevido = Math.max(0, cofinsDebito - cofinsCredito);
+
+        const impostosSobreReceita = pisDevido + cofinsDevido;
+        
+        // 3. CÁLCULO DOS OUTROS ENCARGOS (Sua lógica, agora ativada)
+        const iss = faturamentoAnual * (encargos.iss / 100);
+        const folhaTotal = despesas.salarios + despesas.proLabore;
+        const baseFolhaSalarios = despesas.salarios;
+        const inss = folhaTotal * (encargos.inss / 100);
+        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
+        const rat = baseFolhaSalarios * (encargos.rat / 100);
+        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
+
+        const outrosEncargos = iss + inss + inssTerceiros + rat + fgts;
+
+        // 4. CÁLCULO DO IRPJ E CSLL (Lógica original mantida, mas ajustada)
         const despesasAnual = getDespesasOperacionaisAnual(inputs);
-        const encargosAnual = getEncargosAdicionaisAnual(inputs);
-        const pis = faturamentoAnual * 0.0165;
-        const cofins = faturamentoAnual * 0.076;
-        const impostosSobreReceita = pis + cofins;
+        const encargosAnual = getEncargosAdicionaisAnual(inputs); // Essa função já calcula 'outrosEncargos'
+        
+        // O lucro é a Receita menos as Despesas, Encargos e o PIS/COFINS efetivamente pago.
         const lucroAntesIRCS = faturamentoAnual - despesasAnual - encargosAnual - impostosSobreReceita;
 
-        let irpj = 0; let csll = 0;
+        let irpj = 0; 
+        let csll = 0;
         if (lucroAntesIRCS > 0) {
             const limiteAdicionalAnual = 240000;
             irpj = lucroAntesIRCS * 0.15;
@@ -110,15 +174,15 @@ export function useTributos() {
             }
             csll = lucroAntesIRCS * 0.09;
         }
-        const total = despesasAnual + encargosAnual + impostosSobreReceita + irpj + csll;
-        const custoEfetivo = faturamentoAnual > 0 ? total / faturamentoAnual : 0;
         
-        return { total, custoEfetivo };
+        // 5. SOMA FINAL (com todos os valores)
+        const valorImpostos = impostosSobreReceita + irpj + csll + outrosEncargos;
+        const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
+        
+        return { valorImpostos, cargaTributariaPercentual };
     }
 
     function simularImpostos(inputs) {
-        // A função 'getNumericInputs' do App.vue agora nos entrega o 'folhaPagamento12m' já pronto.
-        // Isso elimina a chance de erro ao tentar acessar a estrutura de despesas aqui.
         resultados.value = {
             simples: calcularSimplesNacional(inputs),
             presumido: calcularLucroPresumido(inputs),
@@ -128,7 +192,12 @@ export function useTributos() {
 
     const rankedResults = computed(() => {
         if (!resultados.value) return {};
-        const regimes = [ { nome: 'Simples Nacional', valor: resultados.value.simples.total }, { nome: 'Lucro Presumido', valor: resultados.value.presumido.total }, { nome: 'Lucro Real', valor: resultados.value.real.total }, ];
+        // ALTERAÇÃO: O critério de ranqueamento agora é o 'valorImpostos'
+        const regimes = [
+            { nome: 'Simples Nacional', valor: resultados.value.simples.valorImpostos },
+            { nome: 'Lucro Presumido', valor: resultados.value.presumido.valorImpostos },
+            { nome: 'Lucro Real', valor: resultados.value.real.valorImpostos },
+        ];
         regimes.sort((a, b) => a.valor - b.valor);
         const ranks = {};
         regimes.forEach((regime, index) => { ranks[regime.nome] = index + 1; });
@@ -136,7 +205,7 @@ export function useTributos() {
     });
 
     const melhorRegime = computed(() => {
-        if (!resultados.value) return 'N/A';
+        if (!resultados.value || !Object.keys(rankedResults.value).length) return 'N/A';
         const regimes = Object.entries(rankedResults.value);
         const vencedor = regimes.find(r => r[1] === 1);
         return vencedor ? vencedor[0] : 'N/A';
