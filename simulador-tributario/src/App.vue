@@ -94,7 +94,6 @@
 </template>
 
 <script setup>
-// O SCRIPT SETUP NÃO PRECISA DE ALTERAÇÕES
 import { reactive } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import './assets/css/styles.css';
@@ -185,7 +184,6 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
 </script>
 
 <style scoped>
-/* O CSS pode ser mantido exatamente o mesmo */
 #app-container {
   max-width: 900px;
   margin: 2rem auto;
@@ -207,10 +205,36 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
   margin-bottom: 2rem;
 }
 
+/* === 💅 CÓDIGO DO BOTÃO ATUALIZADO ABAIXO === */
+
 .main-button {
-  width: auto;
-  padding: 1rem 2.5rem;
+  background-color: var(--cor-primaria); /* Cor de fundo principal da sua aplicação */
+  color: white; /* Texto branco para melhor contraste */
+  font-weight: bold; /* Deixa o texto mais forte */
+  font-size: 1rem; /* Tamanho da fonte */
+  border: none; /* Remove a borda padrão */
+  border-radius: 8px; /* Cantos arredondados */
+  padding: 0.875rem 2rem; /* Espaçamento interno (vertical e horizontal) */
+  cursor: pointer; /* Muda o cursor para indicar que é clicável */
+  transition: all 0.3s ease; /* Transição suave para todas as propriedades */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Sombra para dar profundidade */
+  display: inline-flex; /* Permite alinhar o emoji/ícone com o texto */
+  align-items: center;
+  gap: 0.5rem; /* Espaço entre o emoji e o texto */
 }
+
+.main-button:hover {
+  background-color: var(--cor-primaria-leve); /* Cor mais clara ao passar o mouse */
+  transform: translateY(-2px); /* Efeito de "levantar" o botão */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Sombra mais forte no hover */
+}
+
+.main-button:active {
+  transform: translateY(0); /* Retorna à posição original ao clicar */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Sombra menor para simular o clique */
+}
+
+/* === FIM DAS ALTERAÇÕES NO BOTÃO === */
 
 input[type="text"] {
   text-align: right;
@@ -289,10 +313,6 @@ select:focus {
   outline: none;
   border-color: var(--cor-primaria);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-primaria) 20%, transparent);
-}
-
-.main-button:hover {
-  background-color: var(--cor-primaria-leve);
 }
 
 .comparison-table {
