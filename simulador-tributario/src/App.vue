@@ -57,7 +57,7 @@
         📊 Calcular Projeção Anual
       </button>
     </div>
-    
+
     <section v-if="resultados" class="results-card">
       <h2 class="card-title">RESUMO DA CARGA TRIBUTÁRIA</h2>
       <div class="comparison-table">
@@ -66,7 +66,7 @@
           <div>Valor dos Impostos</div>
           <div>% s/Faturamento</div>
         </div>
-        
+
         <div class="table-row" :class="`rank-${rankedResults['Lucro Presumido']}`">
           <div><strong>Lucro Presumido</strong></div>
           <div>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</div>
@@ -91,19 +91,65 @@
       </div>
     </section>
 
+    <section v-if="resultados" class="details-card">
+      <div class="details-header" @click="toggleDetailsVisibility">
+        <h2 class="card-title">Detalhamento dos Cálculos</h2>
+        <span class="toggle-arrow" :class="{ 'open': isDetailsVisible }">▼</span>
+      </div>
+
+      <div v-if="isDetailsVisible" class="details-table-container">
+        <table class="details-table">
+          <thead>
+            <tr>
+              <th>Tributo</th>
+              <th>Lucro Presumido</th>
+              <th>Lucro Real</th>
+              <th>Simples Nacional</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tributo in tributosDetalhados" :key="tributo.key">
+              <td>{{ tributo.nome }}</td>
+              <td>{{ formatValue(resultados.presumido.detalhes[tributo.key]) }}</td>
+              <td>{{ formatValue(resultados.real.detalhes[tributo.key]) }}</td>
+              <td>{{ formatValue(resultados.simples.detalhes[tributo.key]) }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><strong>TOTAL</strong></td>
+              <td><strong>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</strong></td>
+              <td><strong>R$ {{ formatNumber(resultados.real.valorImpostos) }}</strong></td>
+              <td><strong>R$ {{ formatNumber(resultados.simples.valorImpostos) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
     <footer class="app-footer">
-      <p><strong>Importante:</strong> A opção de enquadramento, seja ele lucro real, lucro presumido ou simples nacional, depende de uma série de condições que não estão incluídas nos calculos.</p>
-      <p>As informações deste simulador servem apenas para orientação geral, e não significam o aconselhamento para a tomada de decisão. Seus cálculos são simplificações da dinâmica tributária das empresas, como qualquer simplificação estão sujeitas a erros e a imprecisões diversas.</p>
-      <p>É necessário sempre consultar um profissional habilitado para que seja discutido os diversos fatores que influenciam a definição de enquadramento tributário para cada caso isolado. Não nos responsabilizamos pelo uso das informações desta ferramenta.</p>
+      <p><strong>Importante:</strong> A opção de enquadramento, seja ele lucro real, lucro presumido ou simples
+        nacional, depende de uma série de condições que não estão incluídas nos calculos.</p>
+      <p>As informações deste simulador servem apenas para orientação geral, e não significam o aconselhamento para a
+        tomada de decisão. Seus cálculos são simplificações da dinâmica tributária das empresas, como qualquer
+        simplificação estão sujeitas a erros e a imprecisões diversas.</p>
+      <p>É necessário sempre consultar um profissional habilitado para que seja discutido os diversos fatores que
+        influenciam a definição de enquadramento tributário para cada caso isolado. Não nos responsabilizamos pelo uso
+        das informações desta ferramenta.</p>
     </footer>
-    </div>
+  </div>
 </template>
 
 <script setup>
-// ... (toda a seção <script> permanece a mesma) ...
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import './assets/css/styles.css';
+
+const isDetailsVisible = ref(false);
+
+function toggleDetailsVisibility() {
+  isDetailsVisible.value = !isDetailsVisible.value;
+}
 
 const inputs = reactive({
   faturamentoAnual: '3.923.000,00',
@@ -143,10 +189,32 @@ const encargosConfig = [
   { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' },
 ];
 
+const tributosDetalhados = [
+  { key: 'pis', nome: 'PIS/PASEP' },
+  { key: 'cofins', nome: 'COFINS' },
+  { key: 'irpj', nome: 'IRPJ' },
+  { key: 'adicionalIRPJ', nome: 'ADICIONAL DE IRPJ' },
+  { key: 'csll', nome: 'CSLL' },
+  { key: 'ipi', nome: 'IPI' },
+  { key: 'iss', nome: 'ISS' },
+  { key: 'icms', nome: 'ICMS' },
+  { key: 'simplesNacional', nome: 'SIMPLES NACIONAL (DAS)' },
+  { key: 'inss', nome: 'INSS' },
+  { key: 'inssTerceiros', nome: 'INSS TERCEIROS' },
+  { key: 'rat', nome: 'RAT' },
+  { key: 'fgts', nome: 'FGTS' },
+];
+
 const formatNumber = (value) => {
   if (value === null || value === undefined || isNaN(value)) return '0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 };
+
+const formatValue = (value) => {
+  if (value === null || value === undefined || value === 0 || isNaN(value)) return '-';
+  return `R$ ${formatNumber(value)}`;
+};
+
 const parseNumber = (formattedValue) => {
   if (!formattedValue || typeof formattedValue !== 'string') return 0;
   return parseFloat(formattedValue.replace(/\./g, '').replace(',', '.'));
@@ -161,29 +229,16 @@ const handleCurrencyInput = (event, key, topCategory = null) => {
 };
 const handlePercentInput = (event, key, category = null) => {
   let value = event.target.value.replace(/[^0-9,]/g, '').replace(',', '.');
-  if (value.indexOf('.') !== -1) {
-    let parts = value.split('.');
-    value = parts[0] + '.' + parts[1].slice(0, 2);
-  }
+  if (value.indexOf('.') !== -1) { let parts = value.split('.'); value = parts[0] + '.' + parts[1].slice(0, 2); }
   const formattedValue = value.replace('.', ',');
   if (category) { inputs[category][key] = formattedValue; }
   else { inputs[key] = formattedValue; }
 };
 
 const getNumericInputs = () => {
-  const numeric = {
-    faturamentoAnual: parseNumber(inputs.faturamentoAnual),
-    rbt12: parseNumber(inputs.rbt12),
-    anexoSimples: inputs.anexoSimples,
-    despesas: {},
-    encargos: {}
-  };
-  for (const key in inputs.despesas) {
-    numeric.despesas[key] = parseNumber(inputs.despesas[key]);
-  }
-  for (const key in inputs.encargos) {
-    numeric.encargos[key] = parseNumber(inputs.encargos[key]);
-  }
+  const numeric = { faturamentoAnual: parseNumber(inputs.faturamentoAnual), rbt12: parseNumber(inputs.rbt12), anexoSimples: inputs.anexoSimples, despesas: {}, encargos: {} };
+  for (const key in inputs.despesas) { numeric.despesas[key] = parseNumber(inputs.despesas[key]); }
+  for (const key in inputs.encargos) { numeric.encargos[key] = parseNumber(inputs.encargos[key]); }
   return numeric;
 };
 
@@ -200,8 +255,6 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
   box-shadow: var(--sombra-card);
 }
 
-/* ... (demais estilos CSS sem alterações) ... */
-
 .form-grid-3-cols {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -215,30 +268,30 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
 }
 
 .main-button {
-  background-color: var(--cor-primaria); /* Cor de fundo principal da sua aplicação */
-  color: white; /* Texto branco para melhor contraste */
-  font-weight: bold; /* Deixa o texto mais forte */
-  font-size: 1rem; /* Tamanho da fonte */
-  border: none; /* Remove a borda padrão */
-  border-radius: 8px; /* Cantos arredondados */
-  padding: 0.875rem 2rem; /* Espaçamento interno (vertical e horizontal) */
-  cursor: pointer; /* Muda o cursor para indicar que é clicável */
-  transition: all 0.3s ease; /* Transição suave para todas as propriedades */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Sombra para dar profundidade */
-  display: inline-flex; /* Permite alinhar o emoji/ícone com o texto */
+  background-color: var(--cor-primaria);
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  padding: 0.875rem 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem; /* Espaço entre o emoji e o texto */
+  gap: 0.5rem;
 }
 
 .main-button:hover {
-  background-color: var(--cor-primaria-leve); /* Cor mais clara ao passar o mouse */
-  transform: translateY(-2px); /* Efeito de "levantar" o botão */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Sombra mais forte no hover */
+  background-color: var(--cor-primaria-leve);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
 .main-button:active {
-  transform: translateY(0); /* Retorna à posição original ao clicar */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Sombra menor para simular o clique */
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 input[type="text"] {
@@ -264,7 +317,8 @@ input[type="text"] {
 }
 
 .card,
-.results-card {
+.results-card,
+.details-card {
   background-color: var(--cor-card);
   padding: 2rem;
   border-radius: var(--raio-borda);
@@ -381,7 +435,6 @@ select:focus {
   font-size: 1.125rem;
 }
 
-/* === 👇 NOVOS ESTILOS PARA O RODAPÉ ADICIONADOS AQUI 👇 === */
 .app-footer {
   margin-top: 2rem;
   padding-top: 1.5rem;
@@ -395,7 +448,74 @@ select:focus {
   margin-bottom: 1rem;
   line-height: 1.5;
 }
-/* === FIM DOS ESTILOS DO RODAPÉ === */
+
+.details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 0;
+  margin-bottom: -1.5rem;
+}
+
+.details-header .card-title {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.details-table-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--cor-borda);
+}
+
+.toggle-arrow {
+  font-size: 1.2rem;
+  color: var(--cor-texto-suave);
+  transition: transform 0.3s ease;
+}
+
+.toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.details-table-container {
+  overflow-x: auto;
+}
+
+.details-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.details-table th,
+.details-table td {
+  padding: 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+.details-table th {
+  background-color: var(--cor-fundo);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.details-table td:first-child,
+.details-table th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.details-table tbody tr:nth-child(even) {
+  background-color: var(--cor-fundo);
+}
+
+.details-table tfoot {
+  border-top: 2px solid var(--cor-texto-suave);
+  font-size: 1.1rem;
+}
 
 @media (max-width: 768px) {
 
