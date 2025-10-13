@@ -1,7 +1,7 @@
 <template>
   <div id="app-container">
     <header class="app-header">
-      <h1 class="logo-text">Simulador Tributário Avançado</h1>
+      <h1 class="logo-text">Simulador de Planejamento tributário</h1>
       <p class="subtitle">Planejamento e clareza para suas decisões fiscais anuais</p>
     </header>
 
@@ -90,10 +90,17 @@
         🏆 O regime de menor **carga tributária** projetada é o <strong>{{ melhorRegime }}</strong>.
       </div>
     </section>
-  </div>
+
+    <footer class="app-footer">
+      <p><strong>Importante:</strong> A opção de enquadramento, seja ele lucro real, lucro presumido ou simples nacional, depende de uma série de condições que não estão incluídas nos calculos.</p>
+      <p>As informações deste simulador servem apenas para orientação geral, e não significam o aconselhamento para a tomada de decisão. Seus cálculos são simplificações da dinâmica tributária das empresas, como qualquer simplificação estão sujeitas a erros e a imprecisões diversas.</p>
+      <p>É necessário sempre consultar um profissional habilitado para que seja discutido os diversos fatores que influenciam a definição de enquadramento tributário para cada caso isolado. Não nos responsabilizamos pelo uso das informações desta ferramenta.</p>
+    </footer>
+    </div>
 </template>
 
 <script setup>
+// ... (toda a seção <script> permanece a mesma) ...
 import { reactive } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import './assets/css/styles.css';
@@ -193,6 +200,8 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
   box-shadow: var(--sombra-card);
 }
 
+/* ... (demais estilos CSS sem alterações) ... */
+
 .form-grid-3-cols {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -204,8 +213,6 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
   justify-content: center;
   margin-bottom: 2rem;
 }
-
-/* === 💅 CÓDIGO DO BOTÃO ATUALIZADO ABAIXO === */
 
 .main-button {
   background-color: var(--cor-primaria); /* Cor de fundo principal da sua aplicação */
@@ -233,8 +240,6 @@ const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos
   transform: translateY(0); /* Retorna à posição original ao clicar */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Sombra menor para simular o clique */
 }
-
-/* === FIM DAS ALTERAÇÕES NO BOTÃO === */
 
 input[type="text"] {
   text-align: right;
@@ -375,6 +380,22 @@ select:focus {
   text-align: center;
   font-size: 1.125rem;
 }
+
+/* === 👇 NOVOS ESTILOS PARA O RODAPÉ ADICIONADOS AQUI 👇 === */
+.app-footer {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--cor-borda);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--cor-texto-suave);
+}
+
+.app-footer p {
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+/* === FIM DOS ESTILOS DO RODAPÉ === */
 
 @media (max-width: 768px) {
 
