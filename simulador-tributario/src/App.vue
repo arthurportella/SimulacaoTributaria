@@ -89,6 +89,13 @@
       <div class="summary">
         🏆 O regime de menor **carga tributária** projetada é o <strong>{{ melhorRegime }}</strong>.
       </div>
+
+      <div class="save-history-section">
+        <input type="text" v-model="simulationName" placeholder="Dê um nome para esta simulação...">
+        <button class="save-button" @click="saveSimulation">
+          💾 Salvar Simulação
+        </button>
+      </div>
     </section>
 
     <section v-if="resultados" class="details-card">
@@ -96,7 +103,6 @@
         <h2 class="card-title">Detalhamento dos Cálculos</h2>
         <span class="toggle-arrow" :class="{ 'open': isDetailsVisible }">▼</span>
       </div>
-
       <div v-if="isDetailsVisible" class="details-table-container">
         <table class="details-table">
           <thead>
@@ -127,6 +133,22 @@
       </div>
     </section>
 
+    <section v-if="history.length > 0" class="history-card">
+      <h2 class="card-title">Histórico de Simulações</h2>
+      <ul class="history-list">
+        <li v-for="(item, index) in history" :key="item.timestamp" class="history-item">
+          <div class="history-info">
+            <span class="history-name">{{ item.name }}</span>
+            <span class="history-date">{{ new Date(item.timestamp).toLocaleString('pt-BR') }}</span>
+          </div>
+          <div class="history-actions">
+            <button @click="loadSimulation(index)" class="action-button load">Carregar</button>
+            <button @click="deleteSimulation(index)" class="action-button delete">Excluir</button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
     <footer class="app-footer">
       <p><strong>Importante:</strong> A opção de enquadramento, seja ele lucro real, lucro presumido ou simples
         nacional, depende de uma série de condições que não estão incluídas nos calculos.</p>
@@ -141,9 +163,51 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import './assets/css/styles.css';
+
+const simulationName = ref('');
+const history = ref([]);
+
+onMounted(() => {
+  const savedHistory = localStorage.getItem('simulationHistory');
+  if (savedHistory) {
+    history.value = JSON.parse(savedHistory);
+  }
+});
+
+function saveSimulation() {
+  if (!simulationName.value.trim() || !resultados.value) {
+    alert('Por favor, dê um nome para a simulação antes de salvar.');
+    return;
+  }
+
+  const snapshot = {
+    name: simulationName.value,
+    timestamp: Date.now(),
+    inputs: JSON.parse(JSON.stringify(inputs)),
+    results: JSON.parse(JSON.stringify(resultados.value)),
+  };
+
+  history.value.unshift(snapshot);
+  localStorage.setItem('simulationHistory', JSON.stringify(history.value));
+  simulationName.value = '';
+}
+
+function loadSimulation(index) {
+  const snapshot = history.value[index];
+  Object.assign(inputs, snapshot.inputs);
+  resultados.value = snapshot.results;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteSimulation(index) {
+  if (confirm('Tem certeza que deseja excluir esta simulação?')) {
+    history.value.splice(index, 1);
+    localStorage.setItem('simulationHistory', JSON.stringify(history.value));
+  }
+}
 
 const isDetailsVisible = ref(false);
 
@@ -318,7 +382,8 @@ input[type="text"] {
 
 .card,
 .results-card,
-.details-card {
+.details-card,
+.history-card {
   background-color: var(--cor-card);
   padding: 2rem;
   border-radius: var(--raio-borda);
@@ -515,6 +580,95 @@ select:focus {
 .details-table tfoot {
   border-top: 2px solid var(--cor-texto-suave);
   font-size: 1.1rem;
+}
+
+.save-history-section {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--cor-borda);
+}
+
+.save-history-section input {
+  flex-grow: 1;
+}
+
+.save-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.save-button:hover {
+  background-color: #0056b3;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-name {
+  font-weight: 600;
+}
+
+.history-date {
+  font-size: 0.8rem;
+  color: var(--cor-texto-suave);
+}
+
+.history-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+  font-weight: 500;
+}
+
+.action-button.load {
+  background-color: var(--cor-primaria);
+}
+
+.action-button.load:hover {
+  background-color: var(--cor-primaria-leve);
+}
+
+.action-button.delete {
+  background-color: #dc3545;
+}
+
+.action-button.delete:hover {
+  background-color: #c82333;
 }
 
 @media (max-width: 768px) {
