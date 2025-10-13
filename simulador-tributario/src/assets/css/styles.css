@@ -1,38 +1,51 @@
-/* src/assets/styles.css */
-
-/* Importando uma fonte moderna do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
-
-/* Definindo nossa paleta de cores e variáveis globais */
+/* src/assets/css/styles.css */
 :root {
-  --cor-primaria: #6d28d9; /* Roxo principal */
-  --cor-primaria-leve: #8b5cf6; /* Roxo mais claro para hover */
-  --cor-fundo: #f3f4f6; /* Cinza bem claro */
+  --cor-primaria: #4CAF50;
+  --cor-primaria-leve: #66bb6a;
+  --cor-fundo: #f4f7f9;
   --cor-card: #ffffff;
-  --cor-texto: #1f2937;
-  --cor-texto-suave: #6b7280;
-  --cor-borda: #e5e7eb;
-
-  /* Cores para o ranking */
-  --cor-bom-fundo: #dcfce7;
-  --cor-bom-borda: #22c55e;
-  --cor-medio-fundo: #fef9c3;
-  --cor-medio-borda: #f59e0b;
-  --cor-ruim-fundo: #fee2e2;
-  --cor-ruim-borda: #ef4444;
-
-  --sombra-card: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --raio-borda: 0.75rem; /* 12px */
+  --cor-texto: #333333;
+  --cor-texto-suave: #757575;
+  --cor-borda: #e0e0e0;
+  --sombra-card: 0 4px 12px rgba(0, 0, 0, 0.08);
+  
+  --cor-bom-fundo: #e8f5e9;
+  --cor-bom-borda: #a5d6a7;
+  --cor-medio-fundo: #fffde7;
+  --cor-medio-borda: #fff59d;
+  --cor-ruim-fundo: #ffebee;
+  --cor-ruim-borda: #ef9a9a;
+  --raio-borda: 12px;
 }
 
-/* Estilos de base para toda a aplicação */
+[data-theme="dark"] {
+  --cor-primaria: #66bb6a;
+  --cor-primaria-leve: #81c784;
+  --cor-fundo: #121212;
+  --cor-card: #1e1e1e;
+  --cor-texto: #e0e0e0;
+  --cor-texto-suave: #9e9e9e;
+  --cor-borda: #424242;
+  --sombra-card: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --cor-bom-fundo: #1c331d;
+  --cor-bom-borda: #388e3c;
+  --cor-medio-fundo: #333221;
+  --cor-medio-borda: #fbc02d;
+  --cor-ruim-fundo: #3e2723;
+  --cor-ruim-borda: #d32f2f;
+}
+
 body {
   margin: 0;
-  background-color: var(--cor-borda); 
-  font-family: 'Poppins', sans-serif;
-  color: var(--cor-texto);
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
+  transition: background-color 0.3s, color 0.3s;
 }
 
 * {
