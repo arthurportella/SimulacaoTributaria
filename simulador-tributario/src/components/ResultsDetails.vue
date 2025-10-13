@@ -6,28 +6,44 @@
     </div>
     <div v-if="isDetailsVisible" class="details-table-container">
       <table class="details-table">
+        <colgroup>
+            <col style="width: 25%;"> <col style="width: 12.5%;"> <col style="width: 12.5%;"> <col style="width: 12.5%;"> <col style="width: 12.5%;"> <col style="width: 12.5%;"> <col style="width: 12.5%;"> </colgroup>
         <thead>
           <tr>
-            <th>Tributo</th>
-            <th>Lucro Presumido</th>
-            <th>Lucro Real</th>
-            <th>Simples Nacional</th>
+            <th rowspan="2">Tributo</th>
+            <th colspan="2">Lucro Presumido</th>
+            <th colspan="2">Lucro Real</th>
+            <th colspan="2">Simples Nacional</th>
+          </tr>
+          <tr>
+            <th>Alíquota</th>
+            <th>Valor</th>
+            <th>Alíquota</th>
+            <th>Valor</th>
+            <th>Alíquota</th>
+            <th>Valor</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="tributo in tributosDetalhados" :key="tributo.key">
             <td>{{ tributo.nome }}</td>
+            
+            <td>{{ formatTaxRate(resultados.presumido.detalhes[tributo.key]) }}</td>
             <td>{{ formatValue(resultados.presumido.detalhes[tributo.key]) }}</td>
+
+            <td>{{ formatTaxRate(resultados.real.detalhes[tributo.key]) }}</td>
             <td>{{ formatValue(resultados.real.detalhes[tributo.key]) }}</td>
+            
+            <td>{{ formatTaxRate(resultados.simples.detalhes[tributo.key]) }}</td>
             <td>{{ formatValue(resultados.simples.detalhes[tributo.key]) }}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
             <td><strong>TOTAL</strong></td>
-            <td><strong>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</strong></td>
-            <td><strong>R$ {{ formatNumber(resultados.real.valorImpostos) }}</strong></td>
-            <td><strong>R$ {{ formatNumber(resultados.simples.valorImpostos) }}</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.real.valorImpostos) }}</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.simples.valorImpostos) }}</strong></td>
           </tr>
         </tfoot>
       </table>
@@ -37,7 +53,8 @@
 
 <script setup>
 import { ref } from 'vue';
-import { formatNumber, formatValue } from '../utils/formatters.js';
+// Importação correta das funções
+import { formatNumber, formatValue, formatTaxRate } from '../utils/formatters.js';
 
 const isDetailsVisible = ref(false);
 function toggleDetailsVisibility() {
@@ -60,10 +77,41 @@ defineProps({
 .toggle-arrow.open { transform: rotate(180deg); }
 
 .details-table-container { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--cor-borda); overflow-x: auto; }
-.details-table { width: 100%; border-collapse: collapse; }
-.details-table th, .details-table td { padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--cor-borda); }
-.details-table th { background-color: var(--cor-fundo); font-weight: 600; font-size: 0.875rem; }
-.details-table td:first-child, .details-table th:first-child { text-align: left; font-weight: 500; }
+.details-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    table-layout: fixed;
+}
+
+/* Estilo base para todas as células de dados e cabeçalhos */
+.details-table th, .details-table td { 
+    padding: 0.75rem 0.5rem; 
+    border-bottom: 1px solid var(--cor-borda); 
+    font-size: 0.875rem;
+    /* Alinhamento principal: Centralizado para todas as colunas de dados e cabeçalhos */
+    text-align: center;
+}
+
+/* 1. Alinhamento da coluna Tributo: Esquerda */
+.details-table td:first-child, 
+.details-table th:first-child { 
+    text-align: left; 
+    font-weight: 500; 
+}
+
+/* 2. REMOVEMOS O text-align: right para as Alíquotas (colunas 2, 4, 6). 
+   Elas agora herdam o text-align: center do estilo base, garantindo a simetria. */
+
+.details-table th { background-color: var(--cor-fundo); font-weight: 600; }
 .details-table tbody tr:nth-child(even) { background-color: var(--cor-fundo); }
 .details-table tfoot { border-top: 2px solid var(--cor-texto-suave); font-size: 1.1rem; }
+
+/* Ajuste específico para as colunas de TOTAL no tfoot */
+.details-table tfoot td {
+    padding-right: 1.5rem;
+    text-align: center !important; 
+}
+.details-table tfoot td:first-child {
+    text-align: left !important;
+}
 </style>

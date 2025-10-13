@@ -37,23 +37,30 @@ export function useTributos() {
         const aliquotaEfetiva = rbt12 > 0 ? ((rbt12 * aliquota) - deduzir) / rbt12 : 0;
         
         const impostoPrincipalDAS = faturamentoAnual * aliquotaEfetiva;
-        const fgts = despesas.salarios * (encargos.fgts / 100);
+
+        // Alíquotas Folha e Outros
+        const aliquotaFgts = encargos.fgts / 100;
+        const aliquotaIss = encargos.iss / 100;
+        const aliquotaIcms = encargos.icms / 100;
+        
+        const fgts = despesas.salarios * aliquotaFgts;
         const sublimite = 3600000;
         let issForaDoSimples = 0;
         let icmsForaDoSimples = 0;
         if (faturamentoAnual > sublimite) {
-            issForaDoSimples = faturamentoAnual * (encargos.iss / 100);
-            icmsForaDoSimples = faturamentoAnual * (encargos.icms / 100);
+            issForaDoSimples = faturamentoAnual * aliquotaIss;
+            icmsForaDoSimples = faturamentoAnual * aliquotaIcms;
         }
 
         const valorImpostos = impostoPrincipalDAS + fgts + issForaDoSimples + icmsForaDoSimples;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
         
+        // ESTRUTURA DE DETALHES MODIFICADA
         const detalhes = {
-            simplesNacional: impostoPrincipalDAS,
-            iss: issForaDoSimples,
-            icms: icmsForaDoSimples,
-            fgts: fgts,
+            simplesNacional: { aliquota: aliquotaEfetiva * 100, valor: impostoPrincipalDAS },
+            iss: { aliquota: aliquotaIss * 100, valor: issForaDoSimples },
+            icms: { aliquota: aliquotaIcms * 100, valor: icmsForaDoSimples },
+            fgts: { aliquota: aliquotaFgts * 100, valor: fgts }, // FGTS (calculado sobre salários)
         };
 
         return { valorImpostos, cargaTributariaPercentual, anexo: nomeAnexo.toUpperCase(), detalhes };
@@ -63,36 +70,69 @@ export function useTributos() {
         const { faturamentoAnual, despesas, encargos } = inputs;
         if (!faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0, detalhes: {} };
 
-        const basePresuncao = 0.32;
-        const pis = faturamentoAnual * 0.0065;
-        const cofins = faturamentoAnual * 0.03;
-        const baseCalculoIRPJCSLL = faturamentoAnual * basePresuncao;
+        // Alíquotas Federais
+        const aliquotaPis = 0.0065;
+        const aliquotaCofins = 0.03;
+        const aliquotaBasePresuncao = 0.32;
+        const aliquotaIrpjPrincipal = 0.15;
+        const aliquotaIrpjAdicional = 0.10;
+        const aliquotaCsll = 0.09;
+
+        const pis = faturamentoAnual * aliquotaPis;
+        const cofins = faturamentoAnual * aliquotaCofins;
+        const baseCalculoIRPJCSLL = faturamentoAnual * aliquotaBasePresuncao;
         const limiteAdicionalAnual = 240000;
         
-        const irpjPrincipal = baseCalculoIRPJCSLL * 0.15;
+        const irpjPrincipal = baseCalculoIRPJCSLL * aliquotaIrpjPrincipal;
         let adicionalIRPJ = 0;
+        let aliquotaAdicionalIRPJFaturamento = 0;
         if (baseCalculoIRPJCSLL > limiteAdicionalAnual) {
-            adicionalIRPJ = (baseCalculoIRPJCSLL - limiteAdicionalAnual) * 0.10;
+            adicionalIRPJ = (baseCalculoIRPJCSLL - limiteAdicionalAnual) * aliquotaIrpjAdicional;
+            // Cálculo da Alíquota do Adicional em relação ao Faturamento Anual (para exibição)
+            aliquotaAdicionalIRPJFaturamento = faturamentoAnual > 0 ? (adicionalIRPJ / faturamentoAnual) : 0;
         }
         const irpj = irpjPrincipal + adicionalIRPJ;
-        const csll = baseCalculoIRPJCSLL * 0.09;
+        const csll = baseCalculoIRPJCSLL * aliquotaCsll;
         const impostosFederais = pis + cofins + irpj + csll;
+
+        // Alíquotas Folha e Outros
+        const aliquotaInss = encargos.inss / 100;
+        const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
+        const aliquotaRat = encargos.rat / 100;
+        const aliquotaFgts = encargos.fgts / 100;
+        const aliquotaIss = encargos.iss / 100;
+        const aliquotaIcms = encargos.icms / 100;
+        const aliquotaIpi = encargos.ipi / 100;
 
         const folhaTotal = despesas.salarios + despesas.proLabore;
         const baseFolhaSalarios = despesas.salarios;
-        const iss = faturamentoAnual * (encargos.iss / 100);
-        const icms = faturamentoAnual * (encargos.icms / 100);
-        const ipi = faturamentoAnual * (encargos.ipi / 100);
-        const inss = folhaTotal * (encargos.inss / 100);
-        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
-        const rat = baseFolhaSalarios * (encargos.rat / 100);
-        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
+        const iss = faturamentoAnual * aliquotaIss;
+        const icms = faturamentoAnual * aliquotaIcms;
+        const ipi = faturamentoAnual * aliquotaIpi;
+        const inss = folhaTotal * aliquotaInss;
+        const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros;
+        const rat = baseFolhaSalarios * aliquotaRat;
+        const fgts = baseFolhaSalarios * aliquotaFgts;
 
         const outrosEncargos = iss + icms + ipi + inss + inssTerceiros + rat + fgts;
         const valorImpostos = impostosFederais + outrosEncargos;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
 
-        const detalhes = { pis, cofins, irpj: irpjPrincipal, adicionalIRPJ, csll, ipi, iss, icms, inss, inssTerceiros, rat, fgts };
+        // ESTRUTURA DE DETALHES MODIFICADA
+        const detalhes = {
+            pis_pasep: { aliquota: aliquotaPis * 100, valor: pis },
+            cofins: { aliquota: aliquotaCofins * 100, valor: cofins },
+            irpj: { aliquota: aliquotaBasePresuncao * aliquotaIrpjPrincipal * 100, valor: irpjPrincipal },
+            adicionalIRPJ: { aliquota: aliquotaAdicionalIRPJFaturamento * 100, valor: adicionalIRPJ },
+            csll: { aliquota: aliquotaBasePresuncao * aliquotaCsll * 100, valor: csll },
+            ipi: { aliquota: aliquotaIpi * 100, valor: ipi },
+            iss: { aliquota: aliquotaIss * 100, valor: iss },
+            icms: { aliquota: aliquotaIcms * 100, valor: icms },
+            inss: { aliquota: aliquotaInss * 100, valor: inss },
+            inssTerceiros: { aliquota: aliquotaInssTerceiros * 100, valor: inssTerceiros },
+            rat: { aliquota: aliquotaRat * 100, valor: rat },
+            fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
+        };
 
         return { valorImpostos, cargaTributariaPercentual, detalhes };
     }
@@ -101,24 +141,40 @@ export function useTributos() {
         const { faturamentoAnual, despesas, encargos } = inputs;
         if (!faturamentoAnual) return { valorImpostos: 0, cargaTributariaPercentual: 0, detalhes: {} };
 
+        // Alíquotas Federais
+        const aliquotaPisDebito = 0.0165;
+        const aliquotaCofinsDebito = 0.076;
+        const aliquotaIrpjPrincipal = 0.15;
+        const aliquotaIrpjAdicional = 0.10;
+        const aliquotaCsll = 0.09;
+        
         const baseCalculoCreditos = despesas.comprasInternas + despesas.comprasInterestaduais + despesas.comprasImportadas + despesas.insumoServicos + despesas.energiaAluguelFretes + despesas.depreciacao;
-        const pisDebito = faturamentoAnual * 0.0165;
-        const cofinsDebito = faturamentoAnual * 0.076;
-        const pisCredito = baseCalculoCreditos * 0.0165;
-        const cofinsCredito = baseCalculoCreditos * 0.076;
+        const pisDebito = faturamentoAnual * aliquotaPisDebito;
+        const cofinsDebito = faturamentoAnual * aliquotaCofinsDebito;
+        const pisCredito = baseCalculoCreditos * aliquotaPisDebito;
+        const cofinsCredito = baseCalculoCreditos * aliquotaCofinsDebito;
         const pisDevido = Math.max(0, pisDebito - pisCredito);
         const cofinsDevido = Math.max(0, cofinsDebito - cofinsCredito);
         const impostosSobreReceita = pisDevido + cofinsDevido;
+
+        // Alíquotas Folha e Outros
+        const aliquotaInss = encargos.inss / 100;
+        const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
+        const aliquotaRat = encargos.rat / 100;
+        const aliquotaFgts = encargos.fgts / 100;
+        const aliquotaIss = encargos.iss / 100;
+        const aliquotaIcms = encargos.icms / 100;
+        const aliquotaIpi = encargos.ipi / 100;
         
         const folhaTotal = despesas.salarios + despesas.proLabore;
         const baseFolhaSalarios = despesas.salarios;
-        const iss = faturamentoAnual * (encargos.iss / 100);
-        const icms = faturamentoAnual * (encargos.icms / 100);
-        const ipi = faturamentoAnual * (encargos.ipi / 100);
-        const inss = folhaTotal * (encargos.inss / 100);
-        const inssTerceiros = baseFolhaSalarios * (encargos.inssTerceiros / 100);
-        const rat = baseFolhaSalarios * (encargos.rat / 100);
-        const fgts = baseFolhaSalarios * (encargos.fgts / 100);
+        const iss = faturamentoAnual * aliquotaIss;
+        const icms = faturamentoAnual * aliquotaIcms;
+        const ipi = faturamentoAnual * aliquotaIpi;
+        const inss = folhaTotal * aliquotaInss;
+        const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros;
+        const rat = baseFolhaSalarios * aliquotaRat;
+        const fgts = baseFolhaSalarios * aliquotaFgts;
         const outrosEncargos = iss + icms + ipi + inss + inssTerceiros + rat + fgts;
 
         const despesasAnual = getDespesasOperacionaisAnual(inputs);
@@ -127,29 +183,86 @@ export function useTributos() {
         let irpjPrincipal = 0;
         let adicionalIRPJ = 0;
         let csll = 0;
+        let aliquotaIrpjFaturamento = 0;
+        let aliquotaAdicionalIRPJFaturamento = 0;
+        let aliquotaCsllFaturamento = 0;
+
         if (lucroAntesIRCS > 0) {
             const limiteAdicionalAnual = 240000;
-            irpjPrincipal = lucroAntesIRCS * 0.15;
+            irpjPrincipal = lucroAntesIRCS * aliquotaIrpjPrincipal;
             if (lucroAntesIRCS > limiteAdicionalAnual) {
-                adicionalIRPJ = (lucroAntesIRCS - limiteAdicionalAnual) * 0.10;
+                adicionalIRPJ = (lucroAntesIRCS - limiteAdicionalAnual) * aliquotaIrpjAdicional;
             }
-            csll = lucroAntesIRCS * 0.09;
+            csll = lucroAntesIRCS * aliquotaCsll;
+
+            // Cálculo da Alíquota do IRPJ/CSLL em relação ao Faturamento Anual (para exibição)
+            aliquotaIrpjFaturamento = faturamentoAnual > 0 ? (irpjPrincipal / faturamentoAnual) : 0;
+            aliquotaAdicionalIRPJFaturamento = faturamentoAnual > 0 ? (adicionalIRPJ / faturamentoAnual) : 0;
+            aliquotaCsllFaturamento = faturamentoAnual > 0 ? (csll / faturamentoAnual) : 0;
         }
         const irpj = irpjPrincipal + adicionalIRPJ;
         
         const valorImpostos = impostosSobreReceita + irpj + csll + outrosEncargos;
         const cargaTributariaPercentual = faturamentoAnual > 0 ? (valorImpostos / faturamentoAnual) * 100 : 0;
         
-        const detalhes = { pis: pisDevido, cofins: cofinsDevido, irpj: irpjPrincipal, adicionalIRPJ, csll, ipi, iss, icms, inss, inssTerceiros, rat, fgts };
+        // ESTRUTURA DE DETALHES MODIFICADA
+        const detalhes = { 
+            // PIS/COFINS (Alíquota é o valor devido dividido pelo faturamento)
+            pis_pasep: { aliquota: faturamentoAnual > 0 ? (pisDevido / faturamentoAnual) * 100 : 0, valor: pisDevido },
+            cofins: { aliquota: faturamentoAnual > 0 ? (cofinsDevido / faturamentoAnual) * 100 : 0, valor: cofinsDevido },
+            // IRPJ/CSLL (Alíquota é o valor calculado dividido pelo faturamento)
+            irpj: { aliquota: aliquotaIrpjFaturamento * 100, valor: irpjPrincipal },
+            adicionalIRPJ: { aliquota: aliquotaAdicionalIRPJFaturamento * 100, valor: adicionalIRPJ },
+            csll: { aliquota: aliquotaCsllFaturamento * 100, valor: csll },
+            ipi: { aliquota: aliquotaIpi * 100, valor: ipi },
+            iss: { aliquota: aliquotaIss * 100, valor: iss },
+            icms: { aliquota: aliquotaIcms * 100, valor: icms },
+            // Encargos sobre a folha
+            inss: { aliquota: aliquotaInss * 100, valor: inss },
+            inssTerceiros: { aliquota: aliquotaInssTerceiros * 100, valor: inssTerceiros },
+            rat: { aliquota: aliquotaRat * 100, valor: rat },
+            fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
+        };
 
         return { valorImpostos, cargaTributariaPercentual, detalhes };
     }
 
     function simularImpostos(inputs) {
+        // Renomeando 'pis' para 'pis_pasep' para melhor correspondência com as chaves (se necessário)
+        const simplesCalculado = calcularSimplesNacional(inputs);
+        const presumidoCalculado = calcularLucroPresumido(inputs);
+        const realCalculado = calcularLucroReal(inputs);
+
+        // O Simples Nacional não detalha PIS/COFINS/IRPJ/CSLL. Vamos garantir que as chaves existam com valor '-' para o Simples.
+        const detalhesSimples = {
+            pis_pasep: '-',
+            cofins: '-',
+            irpj: '-',
+            adicionalIRPJ: '-',
+            csll: '-',
+            ipi: '-',
+            inss: '-',
+            inssTerceiros: '-',
+            rat: '-',
+            // Os demais tributos (ISS, ICMS, FGTS) já estão calculados/detalhados no simplesCalculado.detalhes
+            ...simplesCalculado.detalhes,
+            // Revertendo o nome simplesNacional para SIMPLES NACIONAL (DAS)
+            'simples nacional (DAS)': simplesCalculado.detalhes.simplesNacional,
+            simplesNacional: undefined
+        };
+        delete detalhesSimples.simplesNacional;
+
+        // O Lucro Presumido não detalha o campo SIMPLES NACIONAL (DAS).
+        const detalhesPresumido = { ...presumidoCalculado.detalhes, 'simples nacional (DAS)': '-' };
+
+        // O Lucro Real também não detalha o campo SIMPLES NACIONAL (DAS).
+        const detalhesReal = { ...realCalculado.detalhes, 'simples nacional (DAS)': '-' };
+
+
         resultados.value = {
-            simples: calcularSimplesNacional(inputs),
-            presumido: calcularLucroPresumido(inputs),
-            real: calcularLucroReal(inputs),
+            simples: { ...simplesCalculado, detalhes: detalhesSimples },
+            presumido: { ...presumidoCalculado, detalhes: detalhesPresumido },
+            real: { ...realCalculado, detalhes: detalhesReal },
         };
     }
 

@@ -39,7 +39,7 @@ function selectRegime(regime) {
   selectedRegime.value = regime;
 }
 
-// --- DADOS PARA O GRÁFICO DE BARRAS ---
+// --- DADOS PARA O GRÁFICO DE BARRAS (Sem Alterações) ---
 const barChartData = computed(() => ({
   labels: ['Lucro Presumido', 'Lucro Real', 'Simples Nacional'],
   datasets: [
@@ -55,7 +55,7 @@ const barChartData = computed(() => ({
   ]
 }));
 
-// --- DADOS PARA O GRÁFICO DE PIZZA ---
+// --- DADOS PARA O GRÁFICO DE PIZZA (Lógica Corrigida) ---
 const pieChartData = computed(() => {
   const regimeData = props.resultados[selectedRegime.value]?.detalhes;
   if (!regimeData) return { labels: [], datasets: [{ data: [] }] };
@@ -63,11 +63,25 @@ const pieChartData = computed(() => {
   const labels = [];
   const data = [];
   
-  // Filtra apenas os tributos com valor maior que zero para não poluir o gráfico
+  // Itera sobre os detalhes do regime
   for (const key in regimeData) {
-    if (regimeData[key] > 0) {
+    const detail = regimeData[key];
+    
+    // Verifica se o valor é um objeto com a propriedade 'valor' e se o valor é maior que zero
+    // A propriedade 'valor' é o que deve ser usado no gráfico de pizza.
+    let valorTributo = 0;
+    if (typeof detail === 'object' && detail !== null && detail.valor !== undefined) {
+        valorTributo = detail.valor;
+    } else if (typeof detail === 'number') {
+        // Fallback para caso alguma chave ainda seja um número (embora o ideal seja migrar tudo)
+        valorTributo = detail;
+    }
+
+    // Filtra apenas os tributos com valor maior que zero e que não são a string '-'
+    if (valorTributo > 0) {
+      // Usamos a chave (nome do tributo) como label
       labels.push(key.toUpperCase());
-      data.push(regimeData[key]);
+      data.push(valorTributo);
     }
   }
 
@@ -75,7 +89,7 @@ const pieChartData = computed(() => {
     labels,
     datasets: [
       {
-        backgroundColor: ['#41B883', '#E46651', '#00D8FF', '#DD1B16', '#FFC107', '#607D8B', '#9C27B0', '#3F51B5'],
+        backgroundColor: ['#41B883', '#E46651', '#00D8FF', '#DD1B16', '#FFC107', '#607D8B', '#9C27B0', '#3F51B5', '#8BC34A', '#FF9800', '#F44336', '#03A9F4'],
         data
       }
     ]
@@ -98,6 +112,7 @@ const chartOptions = {
 </script>
 
 <style scoped>
+/* Estilos permanecem inalterados */
 .charts-card { background-color: var(--cor-card); padding: 2rem; border-radius: var(--raio-borda); box-shadow: var(--sombra-card); margin-bottom: 2rem; }
 .card-title { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--cor-borda); }
 .chart-container { position: relative; height: 350px; margin-top: 1rem; }
