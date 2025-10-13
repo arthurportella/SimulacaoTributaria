@@ -3,7 +3,7 @@
     <h2 class="card-title">Visualização Gráfica</h2>
 
     <div class="chart-container">
-      <h3>Comparativo de Carga Tributária Anual</h3>
+      <h3>{{ barChartTitle }}</h3>
       <Bar v-if="barChartData.datasets[0].data.length" :data="barChartData" :options="chartOptions" />
     </div>
 
@@ -30,7 +30,8 @@ import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, Li
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement);
 
 const props = defineProps({
-  resultados: Object
+  resultados: Object,
+  periodo: String
 });
 
 const selectedRegime = ref('presumido'); // Inicia com um regime selecionado
@@ -38,6 +39,10 @@ const selectedRegime = ref('presumido'); // Inicia com um regime selecionado
 function selectRegime(regime) {
   selectedRegime.value = regime;
 }
+
+const barChartTitle = computed(() => {
+  return props.periodo === 'anual' ? 'Comparativo de Carga Tributária Anual' : 'Comparativo de Carga Tributária Trimestral';
+});
 
 // --- DADOS PARA O GRÁFICO DE BARRAS (Sem Alterações) ---
 const barChartData = computed(() => ({

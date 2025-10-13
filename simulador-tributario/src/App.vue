@@ -2,17 +2,19 @@
   <div id="app-container">
     <AppHeader />
 
-    <FormInputs 
-      v-model="inputs" 
-      :despesas-config="despesasConfig" 
-      :encargos-config="encargosConfig" 
+    <FormInputs
+      v-model="inputs"
+      v-model:periodo="periodo"
+      :despesas-config="despesasConfig"
+      :encargos-config="encargosConfig"
     />
 
-    <ActionButtons 
-      @reset="resetForm" 
+    <ActionButtons
+      @reset="resetForm"
       @calculate="handleCalculation"
       @export-pdf="generateNativePDF"
       :is-results-visible="!!resultados"
+      :periodo="periodo"
     />
     
     <template v-if="resultados">
@@ -20,11 +22,12 @@
         :resultados="resultados"
         :ranked-results="rankedResults"
         :melhor-regime="melhorRegime"
+        :periodo="periodo"
         v-model:simulationName="simulationName"
         @save="saveSimulation"
       />
 
-      <ResultsCharts :resultados="resultados" />
+      <ResultsCharts :resultados="resultados" :periodo="periodo" />
 
       <ResultsDetails
         :resultados="resultados"
@@ -63,6 +66,8 @@ import ResultsDetails from './components/ResultsDetails.vue';
 import SimulationHistory from './components/SimulationHistory.vue';
 import AppFooter from './components/AppFooter.vue';
 import ToastNotification from './components/ToastNotification.vue';
+
+const periodo = ref('anual');
 
 // --- NOVA E MELHORADA LÓGICA DE EXPORTAÇÃO PARA PDF ---
 function generateNativePDF() {
@@ -126,6 +131,7 @@ function generateNativePDF() {
     ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
     ['Total de Despesas com Salários:', `R$ ${inputs.despesas.salarios}`],
     ['Total Outras Despesas:', `R$ ${formatNumber(parseNumber(inputs.despesas.energiaAluguelFretes) + parseNumber(inputs.despesas.depreciacao) + parseNumber(inputs.despesas.demaisDespesas))}`],
+    ['Período de Cálculo:', periodo.value === 'anual' ? 'Anual' : 'Trimestral'],
   ];
   
   autoTable(pdf, {
@@ -140,7 +146,7 @@ function generateNativePDF() {
   // Tabela de Resumo
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('Resumo da Carga Tributária Anual:', margin, yPos);
+  pdf.text(`Resumo da Carga Tributária (${periodo.value === 'anual' ? 'Anual' : 'Trimestral'}):`, margin, yPos);
   
   autoTable(pdf, {
     startY: yPos + 2,
@@ -219,7 +225,7 @@ function resetForm() {
     triggerToast('Formulário limpo!');
 }
 function getNumericInputs() { const numeric = { faturamentoAnual: parseNumber(inputs.faturamentoAnual), rbt12: parseNumber(inputs.rbt12), anexoSimples: inputs.anexoSimples, despesas: {}, encargos: {} }; for (const key in inputs.despesas) { numeric.despesas[key] = parseNumber(inputs.despesas[key]); } for (const key in inputs.encargos) { numeric.encargos[key] = parseNumber(inputs.encargos[key]); } return numeric; }
-function handleCalculation() { simularImpostos(getNumericInputs()); }
+function handleCalculation() { simularImpostos(getNumericInputs(), periodo.value); }
 const simulationName = ref('');
 const history = ref([]);
 onMounted(() => { const savedHistory = localStorage.getItem('simulationHistory'); if (savedHistory) { history.value = JSON.parse(savedHistory); } });
@@ -227,7 +233,7 @@ function saveSimulation() { if (!simulationName.value.trim() || !resultados.valu
 function loadSimulation(index) { const snapshot = history.value[index]; Object.assign(inputs, snapshot.inputs); resultados.value = snapshot.results; triggerToast(`Simulação "${snapshot.name}" carregada.`); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function deleteSimulation(index) { const deletedName = history.value[index].name; if (confirm(`Tem certeza que deseja excluir a simulação "${deletedName}"?`)) { history.value.splice(index, 1); localStorage.setItem('simulationHistory', JSON.stringify(history.value)); triggerToast(`Simulação "${deletedName}" excluída.`); } }
 const despesasConfig = [ { key: 'proLabore', label: 'Pró-labore' }, { key: 'salarios', label: 'Salários' }, { key: 'comprasInternas', label: 'Compras Internas' }, { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, { key: 'comprasImportadas', label: 'Compras Importadas' }, { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, { key: 'depreciacao', label: 'Depreciação' }, { key: 'demaisDespesas', label: 'Demais Despesas' }, ];
-const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
+const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestaduais' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
 const tributosDetalhados = [ { key: 'pis_pasep', nome: 'PIS/PASEP' }, { key: 'cofins', nome: 'COFINS' }, { key: 'irpj', nome: 'IRPJ' }, { key: 'adicionalIRPJ', nome: 'ADICIONAL DE IRPJ' }, { key: 'csll', nome: 'CSLL' }, { key: 'ipi', nome: 'IPI' }, { key: 'iss', nome: 'ISS' }, { key: 'icms', nome: 'ICMS' }, { key: 'simples nacional (DAS)', nome: 'SIMPLES NACIONAL (DAS)' }, { key: 'inss', nome: 'INSS' }, { key: 'inssTerceiros', nome: 'INSS TERCEIROS' }, { key: 'rat', nome: 'RAT' }, { key: 'fgts', nome: 'FGTS' }, ];
 const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos();
 </script>

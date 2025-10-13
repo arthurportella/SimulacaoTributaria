@@ -4,7 +4,7 @@
       ✨ Nova Simulação
     </button>
     <button class="main-button" @click="$emit('calculate')">
-      📊 Calcular Projeção Anual
+      📊 {{ calcularButtonText }}
     </button>
     <button class="secondary-button pdf-button" @click="$emit('export-pdf')" :disabled="!isResultsVisible">
       📄 Gerar Relatório
@@ -13,10 +13,17 @@
 </template>
 
 <script setup>
-defineProps({
-  isResultsVisible: Boolean // Recebe a informação se há resultados para habilitar o botão
+import { computed } from 'vue';
+
+const props = defineProps({
+  isResultsVisible: Boolean,
+  periodo: String
 });
 defineEmits(['reset', 'calculate', 'export-pdf']);
+
+const calcularButtonText = computed(() => {
+  return props.periodo === 'anual' ? 'Calcular Projeção Anual' : 'Calcular Projeção Trimestral';
+});
 </script>
 
 <style scoped>

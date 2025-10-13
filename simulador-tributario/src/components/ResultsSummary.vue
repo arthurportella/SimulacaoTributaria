@@ -1,6 +1,6 @@
 <template>
   <section class="results-card">
-    <h2 class="card-title">RESUMO DA CARGA TRIBUTÁRIA</h2>
+    <h2 class="card-title">{{ summaryTitle }}</h2>
     <div class="comparison-table">
       <div class="table-row header">
         <div>Enquadramento</div>
@@ -40,16 +40,22 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { formatNumber } from '../utils/formatters.js';
 
-defineProps({
+const props = defineProps({
   resultados: Object,
   rankedResults: Object,
   melhorRegime: String,
-  simulationName: String
+  simulationName: String,
+  periodo: String
 });
 
 defineEmits(['update:simulationName', 'save']);
+
+const summaryTitle = computed(() => {
+  return props.periodo === 'anual' ? 'RESUMO DA CARGA TRIBUTÁRIA ANUAL' : 'RESUMO DA CARGA TRIBUTÁRIA TRIMESTRAL';
+});
 </script>
 
 <style scoped>

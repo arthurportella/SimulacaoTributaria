@@ -1,9 +1,20 @@
 <template>
     <main class="card">
-      <h2 class="card-title">Projeção Anual e Atividade</h2>
+      <div class="card-header">
+        <h2 class="card-title">Projeção</h2>
+        <div class="period-switcher">
+          <span>Anual</span>
+          <label class="switch">
+            <input type="checkbox" :checked="periodo === 'trimestral'" @change="togglePeriodo">
+            <span class="slider round"></span>
+          </label>
+          <span>Trimestral</span>
+        </div>
+      </div>
+
       <div class="form-grid">
         <div class="form-group">
-          <label for="faturamentoAnual">Faturamento Anual Projetado</label>
+          <label for="faturamentoAnual">{{ faturamentoLabel }}</label>
           <input type="text" id="faturamentoAnual" :value="modelValue.faturamentoAnual" @input="handleCurrencyInput($event, 'faturamentoAnual')">
         </div>
         <div class="form-group">
@@ -24,7 +35,7 @@
     </main>
 
     <section class="card">
-      <h2 class="card-title">Gastos e Despesas Anuais</h2>
+      <h2 class="card-title">{{ despesasTitle }}</h2>
       <div class="form-grid">
         <div class="form-group" v-for="despesa in despesasConfig" :key="despesa.key">
           <label :for="despesa.key">{{ despesa.label }}</label>
@@ -45,15 +56,30 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { formatNumber } from '../utils/formatters.js';
 
 const props = defineProps({
   modelValue: Object, // Usando v-model
+  periodo: String,
   despesasConfig: Array,
   encargosConfig: Array
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'update:periodo']);
+
+const faturamentoLabel = computed(() => {
+  return props.periodo === 'anual' ? 'Faturamento Anual Projetado' : 'Faturamento Trimestral Projetado';
+});
+
+const despesasTitle = computed(() => {
+  return props.periodo === 'anual' ? 'Gastos e Despesas Anuais' : 'Gastos e Despesas Trimestrais';
+});
+
+function togglePeriodo() {
+  const newPeriodo = props.periodo === 'anual' ? 'trimestral' : 'anual';
+  emit('update:periodo', newPeriodo);
+}
 
 function updateField(key, value, category = null) {
   const newInputs = { ...props.modelValue };
@@ -83,9 +109,78 @@ function handlePercentInput(event, key, category = null) {
 </script>
 
 <style scoped>
-/* Estilos específicos dos formulários */
+/* --- NOVO ESTILO PARA O CABEÇALHO DO CARD --- */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+.card-title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* --- ESTILOS DO SELETOR DE PERÍODO (COPIADO E ADAPTADO DO THEME SWITCHER) --- */
+.period-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--cor-texto-suave);
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: var(--cor-primaria);
+}
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
+.slider.round {
+  border-radius: 26px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
+
+/* --- ESTILOS ANTERIORES (INALTERADOS) --- */
 .card { background-color: var(--cor-card); padding: 2rem; border-radius: var(--raio-borda); box-shadow: var(--sombra-card); margin-bottom: 2rem; }
-.card-title { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--cor-borda); }
 .form-grid, .form-grid-3-cols { display: grid; gap: 1.5rem; }
 .form-grid { grid-template-columns: 1fr 1fr; }
 .form-grid-3-cols { grid-template-columns: repeat(3, 1fr); }
@@ -108,5 +203,10 @@ input:focus, select:focus { outline: none; border-color: var(--cor-primaria); bo
 
 @media (max-width: 768px) {
   .form-grid, .form-grid-3-cols { grid-template-columns: 1fr; }
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 }
 </style>
