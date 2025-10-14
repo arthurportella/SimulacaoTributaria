@@ -17,7 +17,7 @@
       :is-results-visible="!!resultados"
       :periodo="periodo"
     />
-    
+
     <template v-if="resultados">
       <ResultsSummary
         :resultados="resultados"
@@ -55,7 +55,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import { useTributos } from './composables/useTributos.js';
-import { parseNumber, formatNumber } from './utils/formatters.js';
+import { parseNumber, formatNumber, formatTaxRate, formatValue } from './utils/formatters.js';
 
 // Importação dos Componentes
 import AppHeader from './components/AppHeader.vue';
@@ -173,16 +173,48 @@ function generateNativePDF() {
     yPos += 2;
 
     const bodyData = tributosDetalhados.map(t => {
-        const pVal = resultados.value.presumido.detalhes[t.key]?.valor;
-        const rVal = resultados.value.real.detalhes[t.key]?.valor;
-        const sVal = resultados.value.simples.detalhes[t.key]?.valor;
-        return [ t.nome, pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-', rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-', sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-' ]
+        const pDetail = resultados.value.presumido.detalhes[t.key];
+        const rDetail = resultados.value.real.detalhes[t.key];
+        const sDetail = resultados.value.simples.detalhes[t.key];
+        return [
+            t.nome,
+            formatTaxRate(pDetail),
+            formatValue(pDetail).replace('R$ ', ''),
+            formatTaxRate(rDetail),
+            formatValue(rDetail).replace('R$ ', ''),
+            formatTaxRate(sDetail),
+            formatValue(sDetail).replace('R$ ', ''),
+        ];
     });
 
-    autoTable(pdf, { startY: yPos, head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']], body: bodyData, theme: 'grid', headStyles: { fillColor: darkHeaderColorRGB }, foot: [ [ { content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } } ] ], footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } } });
+    autoTable(pdf, {
+        startY: yPos,
+        head: [
+            [
+                { content: 'Tributo', rowSpan: 2, styles: { valign: 'middle' } },
+                { content: 'Lucro Presumido', colSpan: 2, styles: { halign: 'center' } },
+                { content: 'Lucro Real', colSpan: 2, styles: { halign: 'center' } },
+                { content: 'Simples Nacional', colSpan: 2, styles: { halign: 'center' } },
+            ],
+            ['Alíquota', 'Valor (R$)', 'Alíquota', 'Valor (R$)', 'Alíquota', 'Valor (R$)']
+        ],
+        body: bodyData,
+        theme: 'grid',
+        headStyles: { fillColor: darkHeaderColorRGB, halign: 'center' },
+        foot: [
+            [
+                { content: 'TOTAL', styles: { fontStyle: 'bold', halign: 'left' } },
+                { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
+                { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
+                { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } }
+            ]
+        ],
+        footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' },
+        styles: { halign: 'right', fontSize: 8 },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold', fontSize: 9 } }
+    });
   
   } else {
-    // ########## LÓGICA ATUALIZADA PARA PDF TRIMESTRAL ##########
     if (!resultadosTrimestrais.value) {
       triggerToast('Erro: Calcule os resultados do trimestre antes de gerar o PDF.');
       return;
@@ -241,29 +273,44 @@ function generateNativePDF() {
         });
         yPos = pdf.lastAutoTable.finalY + 8;
 
-        // NOVA TABELA DE DETALHAMENTO TRIMESTRAL
         pdf.setFontSize(12);
         pdf.text('Detalhamento dos Cálculos do Trimestre', margin, yPos);
         yPos += 2;
         
         const bodyDataTrimestral = tributosDetalhados.map(t => {
-            const pVal = trimData.presumido.detalhes[t.key]?.valor;
-            const rVal = trimData.real.detalhes[t.key]?.valor;
-            const sVal = trimData.simples.detalhes[t.key]?.valor;
-            return [t.nome, pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-', rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-', sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-']
+            const pDetail = trimData.presumido.detalhes[t.key];
+            const rDetail = trimData.real.detalhes[t.key];
+            const sDetail = trimData.simples.detalhes[t.key];
+            return [
+                t.nome,
+                formatTaxRate(pDetail),
+                formatValue(pDetail).replace('R$ ', ''),
+                formatTaxRate(rDetail),
+                formatValue(rDetail).replace('R$ ', ''),
+                formatTaxRate(sDetail),
+                formatValue(sDetail).replace('R$ ', ''),
+            ];
         });
 
         autoTable(pdf, {
             startY: yPos,
-            head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']],
+            head: [
+                [
+                    { content: 'Tributo', rowSpan: 2, styles: { valign: 'middle' } },
+                    { content: 'Lucro Presumido', colSpan: 2, styles: { halign: 'center' } },
+                    { content: 'Lucro Real', colSpan: 2, styles: { halign: 'center' } },
+                    { content: 'Simples Nacional', colSpan: 2, styles: { halign: 'center' } },
+                ],
+                ['Alíquota', 'Valor (R$)', 'Alíquota', 'Valor (R$)', 'Alíquota', 'Valor (R$)']
+            ],
             body: bodyDataTrimestral,
             theme: 'grid',
             headStyles: { fillColor: darkHeaderColorRGB },
             foot: [[
                 { content: 'TOTAL', styles: { fontStyle: 'bold' } },
-                { content: `R$ ${formatNumber(trimData.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } },
-                { content: `R$ ${formatNumber(trimData.real.valorImpostos)}`, styles: { fontStyle: 'bold' } },
-                { content: `R$ ${formatNumber(trimData.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } },
+                { content: `R$ ${formatNumber(trimData.presumido.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
+                { content: `R$ ${formatNumber(trimData.real.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
+                { content: `R$ ${formatNumber(trimData.simples.valorImpostos)}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
             ]],
             footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' },
             styles: { halign: 'right' },
@@ -352,7 +399,7 @@ function resetForm() {
       },
       despesasAnual: { ...emptyDespesa },
       despesasTrimestrais: { t1: { ...emptyDespesa }, t2: { ...emptyDespesa }, t3: { ...emptyDespesa }, t4: { ...emptyDespesa } },
-      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestaduais: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
+      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
     };
     Object.assign(inputs, emptyInputs);
     resultados.value = null;
