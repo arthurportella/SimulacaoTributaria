@@ -69,14 +69,17 @@ import ToastNotification from './components/ToastNotification.vue';
 
 const periodo = ref('anual');
 
-// Lógica de PDF (sem alterações)
+// --- LÓGICA DE EXPORTAÇÃO PARA PDF ---
 function generateNativePDF() {
+  if (!resultados.value) return;
   triggerToast('Gerando relatório profissional em PDF...');
+
   const pdf = new jsPDF('p', 'mm', 'a4');
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 15;
   let yPos = 0;
+
   const addHeader = () => {
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
@@ -90,6 +93,7 @@ function generateNativePDF() {
     pdf.line(margin, 32, pageWidth - margin, 32);
     yPos = 40;
   };
+
   const addFooter = () => {
     const pageCount = pdf.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -103,31 +107,40 @@ function generateNativePDF() {
       pdf.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
     }
   };
+
   addHeader();
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Dados da Simulação:', margin, yPos);
-  
+
   const faturamentoTotalAnual = periodo.value === 'anual'
     ? parseNumber(inputs.faturamentoAnual)
     : Object.values(inputs.faturamentosTrimestrais).reduce((acc, val) => acc + parseNumber(val), 0);
 
+  const despesasAnuaisTotais = periodo.value === 'anual' 
+    ? inputs.despesasAnual 
+    : Object.values(inputs.despesasTrimestrais).reduce((acc, trim) => {
+        for (const key in trim) {
+          acc[key] = (acc[key] || 0) + parseNumber(trim[key]);
+        }
+        return acc;
+      }, {});
+
   const inputData = [
     ['Faturamento Anual Projetado:', `R$ ${formatNumber(faturamentoTotalAnual)}`],
     ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
-    ['Total de Despesas com Salários:', `R$ ${inputs.despesas.salarios}`],
-    ['Total Outras Despesas:', `R$ ${formatNumber(parseNumber(inputs.despesas.energiaAluguelFretes) + parseNumber(inputs.despesas.depreciacao) + parseNumber(inputs.despesas.demaisDespesas))}`],
+    ['Total de Despesas com Salários:', `R$ ${formatNumber(despesasAnuaisTotais.salarios)}`],
+    ['Total Outras Despesas:', `R$ ${formatNumber((despesasAnuaisTotais.energiaAluguelFretes || 0) + (despesasAnuaisTotais.depreciacao || 0) + (despesasAnuaisTotais.demaisDespesas || 0))}`],
     ['Período de Cálculo:', periodo.value === 'anual' ? 'Anual' : 'Trimestral'],
   ];
   
   autoTable(pdf, { startY: yPos + 2, body: inputData, theme: 'plain', styles: { fontSize: 10, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 } }, });
   yPos = pdf.lastAutoTable.finalY + 10;
+  
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'bold');
-  pdf.text(`Resumo da Carga Tributária Anual:`, margin, yPos);
+  pdf.text(`Resumo da Carga Tributária Anual Total:`, margin, yPos);
   
   autoTable(pdf, { startY: yPos + 2, head: [['Enquadramento', 'Valor dos Impostos', '% s/ Faturamento']], body: [ ['Lucro Presumido', `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, `${formatNumber(resultados.value.presumido.cargaTributariaPercentual)}%`], ['Lucro Real', `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, `${formatNumber(resultados.value.real.cargaTributariaPercentual)}%`], ['Simples Nacional', `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, `${formatNumber(resultados.value.simples.cargaTributariaPercentual)}%`], ], theme: 'striped', headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } }, });
   yPos = pdf.lastAutoTable.finalY + 8;
+
   pdf.setFillColor(236, 240, 241);
   pdf.setDrawColor(189, 195, 199);
   pdf.rect(margin, yPos, pageWidth - margin * 2, 10, 'FD');
@@ -135,11 +148,22 @@ function generateNativePDF() {
   pdf.setFont('helvetica', 'bold');
   pdf.text(`Melhor Regime Projetado: ${melhorRegime.value}`, margin + 2, yPos + 6.5);
   yPos += 20;
+
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('Detalhamento dos Cálculos:', margin, yPos);
+  pdf.text('Detalhamento dos Cálculos Anuais Totais:', margin, yPos);
 
-  const bodyData = tributosDetalhados.map(t => [ t.nome, resultados.value.presumido.detalhes[t.key] ? formatNumber(resultados.value.presumido.detalhes[t.key].valor) : '-', resultados.value.real.detalhes[t.key] ? formatNumber(resultados.value.real.detalhes[t.key].valor) : '-', resultados.value.simples.detalhes[t.key] ? formatNumber(resultados.value.simples.detalhes[t.key].valor) : '-', ]);
+  const bodyData = tributosDetalhados.map(t => {
+      const pVal = resultados.value.presumido.detalhes[t.key]?.valor;
+      const rVal = resultados.value.real.detalhes[t.key]?.valor;
+      const sVal = resultados.value.simples.detalhes[t.key]?.valor;
+      return [
+          t.nome,
+          pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-',
+          rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-',
+          sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-',
+      ]
+  });
 
   autoTable(pdf, { startY: yPos + 2, head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']], body: bodyData, theme: 'grid', headStyles: { fillColor: [52, 73, 94] }, foot: [ [ { content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } }, ] ], footStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } }, });
 
@@ -147,7 +171,7 @@ function generateNativePDF() {
   pdf.save(`relatorio-tributario-${Date.now()}.pdf`);
 }
 
-// --- ESTRUTURA DE DADOS INICIAL ATUALIZADA ---
+// --- ESTRUTURA DE DADOS E ESTADO DA APLICAÇÃO ---
 const showToast = ref(false);
 const toastMessage = ref('');
 function triggerToast(message) {
@@ -156,23 +180,33 @@ function triggerToast(message) {
   setTimeout(() => { showToast.value = false; }, 3000);
 }
 
+const despesaTemplate = { proLabore: '0,00', salarios: '395.000,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '13.500,00', depreciacao: '31.500,00', demaisDespesas: '322.000,00' };
+
 const defaultInputs = {
   faturamentoAnual: '3.923.000,00',
-  faturamentosTrimestrais: { t1: '980.750,00', t2: '980.750,00', t3: '980.750,00', t4: '980.750,00', },
+  faturamentosTrimestrais: { t1: '980.750,00', t2: '980.750,00', t3: '980.750,00', t4: '980.750,00' },
   rbt12: '3.923.000,00',
   anexoSimples: 'anexoIII',
-  despesas: { proLabore: '0,00', salarios: '1.580.000,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '54.000,00', depreciacao: '126.000,00', demaisDespesas: '1.288.000,00', },
-  encargos: { ipi: '0,00', iss: '4,00', icms: '0,00', rat: '1,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00', }
+  despesasAnual: { proLabore: '0,00', salarios: '1.580.000,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '54.000,00', depreciacao: '126.000,00', demaisDespesas: '1.288.000,00' },
+  despesasTrimestrais: {
+    t1: { ...despesaTemplate },
+    t2: { ...despesaTemplate },
+    t3: { ...despesaTemplate },
+    t4: { ...despesaTemplate },
+  },
+  encargos: { ipi: '0,00', iss: '4,00', icms: '0,00', rat: '1,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
 };
 const inputs = reactive(JSON.parse(JSON.stringify(defaultInputs)));
 
 function resetForm() {
+    const emptyDespesa = { proLabore: '0,00', salarios: '0,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '0,00', depreciacao: '0,00', demaisDespesas: '0,00' };
     const emptyInputs = {
       faturamentoAnual: '0,00',
-      faturamentosTrimestrais: { t1: '0,00', t2: '0,00', t3: '0,00', t4: '0,00', },
+      faturamentosTrimestrais: { t1: '0,00', t2: '0,00', t3: '0,00', t4: '0,00' },
       rbt12: '0,00', anexoSimples: 'anexoIII',
-      despesas: { proLabore: '0,00', salarios: '0,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '0,00', depreciacao: '0,00', demaisDespesas: '0,00', },
-      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00', }
+      despesasAnual: { ...emptyDespesa },
+      despesasTrimestrais: { t1: { ...emptyDespesa }, t2: { ...emptyDespesa }, t3: { ...emptyDespesa }, t4: { ...emptyDespesa } },
+      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
     };
     Object.assign(inputs, emptyInputs);
     resultados.value = null;
@@ -190,10 +224,16 @@ function getNumericInputs() {
     },
     rbt12: parseNumber(inputs.rbt12),
     anexoSimples: inputs.anexoSimples,
-    despesas: {},
+    despesasAnual: {},
+    despesasTrimestrais: { t1: {}, t2: {}, t3: {}, t4: {} },
     encargos: {}
   };
-  for (const key in inputs.despesas) { numeric.despesas[key] = parseNumber(inputs.despesas[key]); }
+  for (const key in inputs.despesasAnual) { numeric.despesasAnual[key] = parseNumber(inputs.despesasAnual[key]); }
+  for (const trim in inputs.despesasTrimestrais) {
+    for (const key in inputs.despesasTrimestrais[trim]) {
+      numeric.despesasTrimestrais[trim][key] = parseNumber(inputs.despesasTrimestrais[trim][key]);
+    }
+  }
   for (const key in inputs.encargos) { numeric.encargos[key] = parseNumber(inputs.encargos[key]); }
   return numeric;
 }
@@ -210,7 +250,7 @@ function loadSimulation(index) { const snapshot = history.value[index]; Object.a
 function deleteSimulation(index) { const deletedName = history.value[index].name; if (confirm(`Tem certeza que deseja excluir a simulação "${deletedName}"?`)) { history.value.splice(index, 1); localStorage.setItem('simulationHistory', JSON.stringify(history.value)); triggerToast(`Simulação "${deletedName}" excluída.`); } }
 
 const despesasConfig = [ { key: 'proLabore', label: 'Pró-labore' }, { key: 'salarios', label: 'Salários' }, { key: 'comprasInternas', label: 'Compras Internas' }, { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, { key: 'comprasImportadas', label: 'Compras Importadas' }, { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, { key: 'depreciacao', label: 'Depreciação' }, { key: 'demaisDespesas', label: 'Demais Despesas' }, ];
-const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
+const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestaduais' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
 const tributosDetalhados = [ { key: 'pis_pasep', nome: 'PIS/PASEP' }, { key: 'cofins', nome: 'COFINS' }, { key: 'irpj', nome: 'IRPJ' }, { key: 'adicionalIRPJ', nome: 'ADICIONAL DE IRPJ' }, { key: 'csll', nome: 'CSLL' }, { key: 'ipi', nome: 'IPI' }, { key: 'iss', nome: 'ISS' }, { key: 'icms', nome: 'ICMS' }, { key: 'simples nacional (DAS)', nome: 'SIMPLES NACIONAL (DAS)' }, { key: 'inss', nome: 'INSS' }, { key: 'inssTerceiros', nome: 'INSS TERCEIROS' }, { key: 'rat', nome: 'RAT' }, { key: 'fgts', nome: 'FGTS' }, ];
 const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos();
 </script>

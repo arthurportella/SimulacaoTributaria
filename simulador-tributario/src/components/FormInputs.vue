@@ -1,7 +1,7 @@
 <template>
     <main class="card">
       <div class="card-header">
-        <h2 class="card-title">Projeção</h2>
+        <h2 class="card-title">{{ cardTitle }}</h2>
         <div class="period-switcher">
           <span>Anual</span>
           <label class="switch">
@@ -33,13 +33,13 @@
         </template>
         
         <template v-else>
-          <div class="form-group">
+          <div class="form-group span-2">
             <label for="faturamentoAnual">Faturamento Anual Projetado</label>
             <input type="text" id="faturamentoAnual" :value="modelValue.faturamentoAnual" @input="handleCurrencyInput($event, 'faturamentoAnual')">
           </div>
         </template>
 
-        <div class="form-group" :class="{ 'span-2': periodo === 'anual' }">
+        <div class="form-group span-2">
           <label for="rbt12">Receita Bruta (Últimos 12 Meses)</label>
           <input type="text" id="rbt12" :value="modelValue.rbt12" @input="handleCurrencyInput($event, 'rbt12')">
         </div>
@@ -59,10 +59,29 @@
 
     <section class="card">
       <h2 class="card-title">{{ despesasTitle }}</h2>
-      <div class="form-grid">
+
+      <div v-if="periodo === 'trimestral'">
+        <div class="tabs">
+          <button v-for="i in 4" :key="i" @click="activeTab = `t${i}`" :class="{ 'active': activeTab === `t${i}` }">
+            {{ i }}º Trimestre
+          </button>
+        </div>
+        <div class="tab-content">
+          <template v-for="trimestre in ['t1', 't2', 't3', 't4']" :key="trimestre">
+            <div v-if="activeTab === trimestre" class="form-grid">
+              <div class="form-group" v-for="despesa in despesasConfig" :key="despesa.key">
+                <label :for="`${despesa.key}-${trimestre}`">{{ despesa.label }}</label>
+                <input :id="`${despesa.key}-${trimestre}`" type="text" :value="modelValue.despesasTrimestrais[trimestre][despesa.key]" @input="handleCurrencyInput($event, despesa.key, 'despesasTrimestrais', trimestre)">
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div v-else class="form-grid">
         <div class="form-group" v-for="despesa in despesasConfig" :key="despesa.key">
           <label :for="despesa.key">{{ despesa.label }}</label>
-          <input type="text" :id="despesa.key" :value="modelValue.despesas[despesa.key]" @input="handleCurrencyInput($event, despesa.key, 'despesas')">
+          <input type="text" :id="despesa.key" :value="modelValue.despesasAnual[despesa.key]" @input="handleCurrencyInput($event, despesa.key, 'despesasAnual')">
         </div>
       </div>
     </section>
@@ -79,7 +98,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { formatNumber } from '../utils/formatters.js';
 
 const props = defineProps({
@@ -91,8 +110,14 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'update:periodo']);
 
+const activeTab = ref('t1');
+
+const cardTitle = computed(() => {
+  return props.periodo === 'anual' ? 'Projeção Anual e Atividade' : 'Projeção Trimestral';
+});
+
 const despesasTitle = computed(() => {
-  return 'Gastos e Despesas Anuais';
+  return props.periodo === 'anual' ? 'Gastos e Despesas Anuais' : 'Gastos e Despesas Trimestrais';
 });
 
 function togglePeriodo() {
@@ -100,9 +125,11 @@ function togglePeriodo() {
   emit('update:periodo', newPeriodo);
 }
 
-function updateField(key, value, category = null) {
+function updateField(key, value, category = null, subCategory = null) {
   const newInputs = { ...props.modelValue };
-  if (category) {
+  if (subCategory && newInputs[category]) {
+    newInputs[category][subCategory][key] = value;
+  } else if (category) {
     newInputs[category][key] = value;
   } else {
     newInputs[key] = value;
@@ -110,11 +137,11 @@ function updateField(key, value, category = null) {
   emit('update:modelValue', newInputs);
 }
 
-function handleCurrencyInput(event, key, category = null) {
+function handleCurrencyInput(event, key, category = null, subCategory = null) {
   let digits = event.target.value.replace(/\D/g, '');
   if (digits === '') digits = '0';
   const numberValue = Number(digits) / 100;
-  updateField(key, formatNumber(numberValue), category);
+  updateField(key, formatNumber(numberValue), category, subCategory);
 }
 
 function handlePercentInput(event, key, category = null) {
@@ -128,15 +155,15 @@ function handlePercentInput(event, key, category = null) {
 </script>
 
 <style scoped>
-/* ESTILOS (sem alterações) */
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--cor-borda);
-}
+/* ESTILOS PARA ABAS (TABS) */
+.tabs { display: flex; border-bottom: 1px solid var(--cor-borda); margin-bottom: 1.5rem; }
+.tabs button { padding: 0.75rem 1.5rem; border: none; background-color: transparent; cursor: pointer; color: var(--cor-texto-suave); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s ease-in-out; }
+.tabs button.active { color: var(--cor-primaria); border-bottom-color: var(--cor-primaria); }
+.tabs button:hover { color: var(--cor-texto); }
+.tab-content { padding-top: 1rem; }
+
+/* --- ESTILOS ANTERIORES --- */
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--cor-borda); }
 .card-title { margin: 0; padding: 0; border: none; }
 .period-switcher { display: flex; align-items: center; gap: 0.75rem; font-size: 0.9rem; font-weight: 500; color: var(--cor-texto-suave); }
 .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
