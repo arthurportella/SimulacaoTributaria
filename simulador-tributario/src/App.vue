@@ -52,7 +52,7 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // CORREÇÃO APLICADA AQUI
+import autoTable from 'jspdf-autotable';
 
 import { useTributos } from './composables/useTributos.js';
 import { parseNumber, formatNumber } from './utils/formatters.js';
@@ -82,15 +82,15 @@ function generateNativePDF() {
   let yPos = 0;
 
   // Cores da Identidade Visual
-  const primaryColor = '#4CAF50'; // Verde principal
+  const primaryColor = '#4CAF50';
   const primaryColorRGB = [76, 175, 80];
-  const highlightBgColorRGB = [232, 245, 233]; // Verde claro de fundo
-  const highlightBorderColorRGB = [165, 214, 167]; // Verde da borda
-  const darkHeaderColorRGB = [46, 125, 50]; // Um verde mais escuro para cabeçalhos
+  const highlightBgColorRGB = [232, 245, 233];
+  const highlightBorderColorRGB = [165, 214, 167];
+  const darkHeaderColorRGB = [46, 125, 50];
 
   const addHeader = (isFirstPage = false) => {
     if (!isFirstPage) {
-        yPos = 30; // Reset Y-pos for new pages
+        yPos = 30;
     } else {
         pdf.setTextColor(primaryColor);
         pdf.setFontSize(18);
@@ -105,7 +105,7 @@ function generateNativePDF() {
         const generationDate = new Date().toLocaleString('pt-BR');
         pdf.text(`Data de Geração: ${generationDate}`, pageWidth - margin, 26, { align: 'right' });
         
-        pdf.setDrawColor(220); // Linha cinza claro
+        pdf.setDrawColor(220);
         pdf.line(margin, 32, pageWidth - margin, 32);
         yPos = 42;
     }
@@ -130,132 +130,150 @@ function generateNativePDF() {
   };
   
   const checkPageBreak = (neededSpace) => {
-      if (yPos + neededSpace > pageHeight - 30) { // 30 é a margem para o rodapé
+      if (yPos + neededSpace > pageHeight - 30) {
           pdf.addPage();
           addHeader();
       }
   }
 
   addHeader(true);
+
+  if (periodo.value === 'anual') {
+    const faturamentoTotalAnual = parseNumber(inputs.faturamentoAnual);
+    const despesasAnuaisTotais = inputs.despesasAnual;
+    const inputData = [
+        ['Faturamento Anual Projetado:', `R$ ${formatNumber(faturamentoTotalAnual)}`],
+        ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
+        ['Total de Despesas com Salários:', `R$ ${formatNumber(parseNumber(despesasAnuaisTotais.salarios))}`],
+        ['Total Outras Despesas:', `R$ ${formatNumber(parseNumber(despesasAnuaisTotais.energiaAluguelFretes) + parseNumber(despesasAnuaisTotais.depreciacao) + parseNumber(despesasAnuaisTotais.demaisDespesas))}`],
+        ['Período de Cálculo:', 'Anual'],
+    ];
+
+    pdf.setTextColor(40);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Dados da Simulação:', margin, yPos);
+    yPos += 2;
+    
+    autoTable(pdf, { startY: yPos, body: inputData, theme: 'plain', styles: { fontSize: 10, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 }, 1: { halign: 'left' } } });
+    yPos = pdf.lastAutoTable.finalY + 10;
+    
+    pdf.text(`Resumo da Carga Tributária Anual Total:`, margin, yPos);
+    yPos += 2;
+    
+    autoTable(pdf, { startY: yPos, head: [['Enquadramento', 'Valor dos Impostos', '% s/ Faturamento']], body: [ ['Lucro Presumido', `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, `${formatNumber(resultados.value.presumido.cargaTributariaPercentual)}%`], ['Lucro Real', `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, `${formatNumber(resultados.value.real.cargaTributariaPercentual)}%`], ['Simples Nacional', `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, `${formatNumber(resultados.value.simples.cargaTributariaPercentual)}%`] ], theme: 'grid', headStyles: { fillColor: primaryColorRGB, textColor: 255, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } } });
+    yPos = pdf.lastAutoTable.finalY + 8;
+
+    pdf.setFillColor(...highlightBgColorRGB);
+    pdf.setDrawColor(...highlightBorderColorRGB);
+    pdf.rect(margin, yPos, pageWidth - margin * 2, 12, 'FD');
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...darkHeaderColorRGB);
+    pdf.text(`🏆 Melhor Regime Projetado: ${melhorRegime.value}`, margin + 3, yPos + 7.5);
+    yPos += 20;
+
+    pdf.setTextColor(40);
+    pdf.setFontSize(12);
+    pdf.text('Detalhamento dos Cálculos Anuais Totais:', margin, yPos);
+    yPos += 2;
+
+    const bodyData = tributosDetalhados.map(t => {
+        const pVal = resultados.value.presumido.detalhes[t.key]?.valor;
+        const rVal = resultados.value.real.detalhes[t.key]?.valor;
+        const sVal = resultados.value.simples.detalhes[t.key]?.valor;
+        return [ t.nome, pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-', rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-', sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-' ]
+    });
+
+    autoTable(pdf, { startY: yPos, head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']], body: bodyData, theme: 'grid', headStyles: { fillColor: darkHeaderColorRGB }, foot: [ [ { content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } } ] ], footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } } });
   
-  pdf.setTextColor(40);
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Dados da Simulação:', margin, yPos);
-  yPos += 2;
+  } else {
+    if (!resultadosTrimestrais.value) {
+      triggerToast('Erro: Calcule os resultados do trimestre antes de gerar o PDF.');
+      return;
+    }
 
-  const faturamentoTotalAnual = periodo.value === 'anual'
-    ? parseNumber(inputs.faturamentoAnual)
-    : Object.values(inputs.faturamentosTrimestrais).reduce((acc, val) => acc + parseNumber(val), 0);
+    pdf.setTextColor(40);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Dados da Simulação:', margin, yPos);
+    yPos += 2;
+    
+    // CORREÇÃO APLICADA AQUI
+    const inputDataGeral = [
+        ['1º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t1}`],
+        ['2º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t2}`],
+        ['3º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t3}`],
+        ['4º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t4}`],
+        ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
+        ['Atividade Principal:', `${inputs.anexoSimples.replace('anexo', 'Anexo ')}`],
+        ['Período de Cálculo:', 'Trimestral'],
+    ];
 
-  const despesasAnuaisTotais = periodo.value === 'anual' 
-    ? inputs.despesasAnual 
-    : Object.values(inputs.despesasTrimestrais).reduce((acc, trim) => {
-        for (const key in trim) {
-          acc[key] = (acc[key] || 0) + parseNumber(trim[key]);
-        }
-        return acc;
-      }, {});
+    autoTable(pdf, { startY: yPos, body: inputDataGeral, theme: 'plain', styles: { fontSize: 10, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 }, 1: { halign: 'left' } } });
+    yPos = pdf.lastAutoTable.finalY + 10;
 
-  const inputData = [
-    ['Faturamento Anual Projetado:', `R$ ${formatNumber(faturamentoTotalAnual)}`],
-    ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
-    ['Total de Despesas com Salários:', `R$ ${formatNumber(despesasAnuaisTotais.salarios)}`],
-    ['Total Outras Despesas:', `R$ ${formatNumber((despesasAnuaisTotais.energiaAluguelFretes || 0) + (despesasAnuaisTotais.depreciacao || 0) + (despesasAnuaisTotais.demaisDespesas || 0))}`],
-    ['Período de Cálculo:', periodo.value === 'anual' ? 'Anual' : 'Trimestral'],
-  ];
-  
-  autoTable(pdf, { 
-      startY: yPos,
-      body: inputData, 
-      theme: 'plain', 
-      styles: { fontSize: 10, cellPadding: 2 }, 
-      columnStyles: { 
-          0: { fontStyle: 'bold', cellWidth: 70 },
-          1: { halign: 'left' }
-      }, 
-  });
-  yPos = pdf.lastAutoTable.finalY + 10;
-  
-  checkPageBreak(50);
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(`Resumo da Carga Tributária Anual Total:`, margin, yPos);
-  yPos += 2;
-  
-  autoTable(pdf, { 
-      startY: yPos, 
-      head: [['Enquadramento', 'Valor dos Impostos', '% s/ Faturamento']], 
-      body: [ 
-          ['Lucro Presumido', `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, `${formatNumber(resultados.value.presumido.cargaTributariaPercentual)}%`], 
-          ['Lucro Real', `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, `${formatNumber(resultados.value.real.cargaTributariaPercentual)}%`], 
-          ['Simples Nacional', `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, `${formatNumber(resultados.value.simples.cargaTributariaPercentual)}%`], 
-      ], 
-      theme: 'grid',
-      headStyles: { fillColor: primaryColorRGB, textColor: 255, fontStyle: 'bold' },
-      styles: { halign: 'right' }, 
-      columnStyles: { 0: { halign: 'left' } }, 
-  });
-  yPos = pdf.lastAutoTable.finalY + 8;
+    for (let i = 1; i <= 4; i++) {
+        const trimKey = `t${i}`;
+        const trimData = resultadosTrimestrais.value[trimKey];
+        if (!trimData || trimData.faturamento === 0) continue;
 
-  checkPageBreak(20);
-  pdf.setFillColor(...highlightBgColorRGB);
-  pdf.setDrawColor(...highlightBorderColorRGB);
-  pdf.rect(margin, yPos, pageWidth - margin * 2, 12, 'FD');
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...darkHeaderColorRGB);
-  pdf.text(`Melhor Regime Projetado: ${melhorRegime.value}`, margin + 3, yPos + 7.5);
-  yPos += 20;
+        checkPageBreak(80);
 
-  checkPageBreak(80); 
-  pdf.setTextColor(40);
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Detalhamento dos Cálculos Anuais Totais:', margin, yPos);
-  yPos += 2;
+        pdf.setTextColor(40);
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Resumo do ${i}º Trimestre`, margin, yPos);
+        yPos += 2;
+        
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Faturamento do Período: R$ ${formatNumber(trimData.faturamento)}`, margin, yPos + 5);
+        yPos += 9;
 
-  const bodyData = tributosDetalhados.map(t => {
-      const pVal = resultados.value.presumido.detalhes[t.key]?.valor;
-      const rVal = resultados.value.real.detalhes[t.key]?.valor;
-      const sVal = resultados.value.simples.detalhes[t.key]?.valor;
-      return [
-          t.nome,
-          pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-',
-          rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-',
-          sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-',
-      ]
-  });
+        autoTable(pdf, {
+            startY: yPos,
+            head: [['Enquadramento', 'Valor dos Impostos', '% s/ Faturamento']],
+            body: [
+                ['Lucro Presumido', `R$ ${formatNumber(trimData.presumido.valorImpostos)}`, `${formatNumber((trimData.presumido.valorImpostos / trimData.faturamento) * 100)}%`],
+                ['Lucro Real', `R$ ${formatNumber(trimData.real.valorImpostos)}`, `${formatNumber((trimData.real.valorImpostos / trimData.faturamento) * 100)}%`],
+                ['Simples Nacional', `R$ ${formatNumber(trimData.simples.valorImpostos)}`, `${formatNumber((trimData.simples.valorImpostos / trimData.faturamento) * 100)}%`],
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: primaryColorRGB, textColor: 255, fontStyle: 'bold' },
+            styles: { halign: 'right' },
+            columnStyles: { 0: { halign: 'left' } },
+        });
+        yPos = pdf.lastAutoTable.finalY + 15;
+    }
 
-  autoTable(pdf, { 
-      startY: yPos, 
-      head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']], 
-      body: bodyData, 
-      theme: 'grid', 
-      headStyles: { fillColor: darkHeaderColorRGB },
-      foot: [ 
-          [ 
-              { content: 'TOTAL', styles: { fontStyle: 'bold' } }, 
-              { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } }, 
-              { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, styles: { fontStyle: 'bold' } }, 
-              { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } }, 
-          ] 
-      ], 
-      footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' }, 
-      styles: { halign: 'right' }, 
-      columnStyles: { 0: { halign: 'left' } },
-      didDrawPage: (data) => {
-          if (data.pageNumber > 1) {
-              addHeader();
-          }
-      }
-  });
+    pdf.addPage();
+    addHeader();
+
+    pdf.setTextColor(40);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(`Resumo da Carga Tributária Anual Total:`, margin, yPos);
+    yPos += 2;
+    
+    autoTable(pdf, { startY: yPos, head: [['Enquadramento', 'Valor dos Impostos', '% s/ Faturamento']], body: [ ['Lucro Presumido', `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, `${formatNumber(resultados.value.presumido.cargaTributariaPercentual)}%`], ['Lucro Real', `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, `${formatNumber(resultados.value.real.cargaTributariaPercentual)}%`], ['Simples Nacional', `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, `${formatNumber(resultados.value.simples.cargaTributariaPercentual)}%`] ], theme: 'grid', headStyles: { fillColor: primaryColorRGB, textColor: 255, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } } });
+    yPos = pdf.lastAutoTable.finalY + 8;
+
+    pdf.setFillColor(...highlightBgColorRGB);
+    pdf.setDrawColor(...highlightBorderColorRGB);
+    pdf.rect(margin, yPos, pageWidth - margin * 2, 12, 'FD');
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...darkHeaderColorRGB);
+    pdf.text(`🏆 Melhor Regime Projetado (Anual): ${melhorRegime.value}`, margin + 3, yPos + 7.5);
+  }
 
   addFooter();
   pdf.save(`relatorio-tributario-${simulationName.value || 'simulacao'}-${Date.now()}.pdf`);
 }
 
-// --- ESTRUTURA DE DADOS E ESTADO DA APLICAÇÃO ---
+
+// --- DEMAIS FUNÇÕES DO SCRIPT (SEM ALTERAÇÃO) ---
 const showToast = ref(false);
 const toastMessage = ref('');
 function triggerToast(message) {
@@ -374,7 +392,7 @@ function deleteSimulation(index) { const deletedName = history.value[index].name
 const despesasConfig = [ { key: 'proLabore', label: 'Pró-labore' }, { key: 'salarios', label: 'Salários' }, { key: 'comprasInternas', label: 'Compras Internas' }, { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, { key: 'comprasImportadas', label: 'Compras Importadas' }, { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, { key: 'depreciacao', label: 'Depreciação' }, { key: 'demaisDespesas', label: 'Demais Despesas' }, ];
 const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
 const tributosDetalhados = [ { key: 'pis_pasep', nome: 'PIS/PASEP' }, { key: 'cofins', nome: 'COFINS' }, { key: 'irpj', nome: 'IRPJ' }, { key: 'adicionalIRPJ', nome: 'ADICIONAL DE IRPJ' }, { key: 'csll', nome: 'CSLL' }, { key: 'ipi', nome: 'IPI' }, { key: 'iss', nome: 'ISS' }, { key: 'icms', nome: 'ICMS' }, { key: 'simples nacional (DAS)', nome: 'SIMPLES NACIONAL (DAS)' }, { key: 'inss', nome: 'INSS' }, { key: 'inssTerceiros', nome: 'INSS TERCEIROS' }, { key: 'rat', nome: 'RAT' }, { key: 'fgts', nome: 'FGTS' }, ];
-const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos();
+const { resultados, resultadosTrimestrais, simularImpostos, rankedResults, melhorRegime } = useTributos();
 </script>
 
 <style scoped>

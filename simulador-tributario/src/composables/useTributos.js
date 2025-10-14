@@ -38,7 +38,9 @@ function somarDetalhes(detalhesArray, faturamentoTotal) {
 
 export function useTributos() {
     const resultados = ref(null);
+    const resultadosTrimestrais = ref(null); // NOVO ESTADO
 
+    // ... (funções calcularSimplesNacional, calcularLucroPresumido, calcularLucroReal permanecem as mesmas) ...
     function calcularSimplesNacional(inputs, faturamentoPeriodo, despesasPeriodo, periodo, faturamentoBaseICMS) {
         const { rbt12, anexoSimples, encargos, despesasAnual } = inputs;
         const folhaPagamento12m = despesasAnual.salarios + despesasAnual.proLabore;
@@ -99,7 +101,6 @@ export function useTributos() {
         const cofins = faturamentoPeriodo * aliquotaCofins;
         const baseCalculoIRPJCSLL = faturamentoPeriodo * aliquotaBasePresuncao;
         
-        // CORREÇÃO APLICADA AQUI
         const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
         
         const irpjPrincipal = baseCalculoIRPJCSLL * aliquotaIrpjPrincipal;
@@ -172,7 +173,6 @@ export function useTributos() {
 
         let irpjPrincipal = 0; let adicionalIRPJ = 0; let csll = 0;
         if (lucroAntesIRCS > 0) {
-            // CORREÇÃO APLICADA AQUI
             const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
             irpjPrincipal = lucroAntesIRCS * aliquotaIrpjPrincipal;
             if (lucroAntesIRCS > limiteAdicional) {
@@ -198,7 +198,9 @@ export function useTributos() {
         return { valorImpostos, detalhes };
     }
 
+
     function simularImpostos(inputs, periodo = 'anual') {
+        resultadosTrimestrais.value = null; // Limpa os resultados trimestrais a cada cálculo
         let faturamentoTotal = 0;
         const regimes = ['simples', 'presumido', 'real'];
         const totais = {};
@@ -225,8 +227,8 @@ export function useTributos() {
             totais.real.detalhes.push(realResult.detalhes);
 
         } else { // Trimestral
-            const faturamentos = Object.values(inputs.faturamentosTrimestrais);
-            faturamentoTotal = faturamentos.reduce((a, b) => a + b, 0);
+            const trimestralResults = {}; // Objeto temporário para os resultados individuais
+            faturamentoTotal = Object.values(inputs.faturamentosTrimestrais).reduce((a, b) => a + b, 0);
             
             for (const trim of ['t1', 't2', 't3', 't4']) {
                 const faturamentoTrimestre = inputs.faturamentosTrimestrais[trim];
@@ -234,18 +236,29 @@ export function useTributos() {
                 const faturamentoBaseICMSTrimestre = inputs.anexoSimples === 'anexoI' ? inputs.faturamentoComercio.trimestral[trim] : faturamentoTrimestre;
                 
                 const simplesResult = calcularSimplesNacional(inputs, faturamentoTrimestre, despesasTrimestre, periodo, faturamentoBaseICMSTrimestre);
+                const presumidoResult = calcularLucroPresumido(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
+                const realResult = calcularLucroReal(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
+
+                // Acumula os totais para a visualização principal
                 totais.simples.valorImpostos += simplesResult.valorImpostos;
                 totais.simples.detalhes.push(simplesResult.detalhes);
-                totais.simples.anexo = simplesResult.anexo;
+                totais.simples.anexo = simplesResult.anexo; // anexo é o mesmo para todos
 
-                const presumidoResult = calcularLucroPresumido(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
                 totais.presumido.valorImpostos += presumidoResult.valorImpostos;
                 totais.presumido.detalhes.push(presumidoResult.detalhes);
                 
-                const realResult = calcularLucroReal(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
                 totais.real.valorImpostos += realResult.valorImpostos;
                 totais.real.detalhes.push(realResult.detalhes);
+
+                // Armazena o resultado individual do trimestre
+                trimestralResults[trim] = {
+                    faturamento: faturamentoTrimestre,
+                    simples: simplesResult,
+                    presumido: presumidoResult,
+                    real: realResult
+                };
             }
+            resultadosTrimestrais.value = trimestralResults; // Atribui os resultados individuais ao novo estado
         }
 
         const detalhesSimples = { ...somarDetalhes(totais.simples.detalhes, faturamentoTotal), 'simples nacional (DAS)': somarDetalhes(totais.simples.detalhes, faturamentoTotal).simplesNacional, pis_pasep: '-', cofins: '-', irpj: '-', adicionalIRPJ: '-', csll: '-', ipi: '-', inss: '-', inssTerceiros: '-', rat: '-' };
@@ -291,5 +304,5 @@ export function useTributos() {
         return vencedor ? vencedor[0] : 'N/A';
     });
 
-    return { resultados, simularImpostos, rankedResults, melhorRegime };
+    return { resultados, resultadosTrimestrais, simularImpostos, rankedResults, melhorRegime };
 }
