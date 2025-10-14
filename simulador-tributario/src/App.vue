@@ -115,17 +115,18 @@ function generateNativePDF() {
     const pageCount = pdf.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
-      pdf.setDrawColor(220);
-      pdf.line(margin, pageHeight - 25, pageWidth - margin, pageHeight - 25);
-      
-      pdf.setFontSize(7);
-      pdf.setTextColor(150);
-      const disclaimer = 'Importante: As informações deste simulador servem apenas para orientação geral e não significam o aconselhamento para a tomada de decisão. Consulte sempre um profissional habilitado.';
-      const splitDisclaimer = pdf.splitTextToSize(disclaimer, pageWidth - margin * 2);
-      pdf.text(splitDisclaimer, margin, pageHeight - 20);
-      
       pdf.setFontSize(8);
+      pdf.setTextColor(150);
       pdf.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      if (i === pageCount) {
+        pdf.setDrawColor(220);
+        pdf.line(margin, pageHeight - 25, pageWidth - margin, pageHeight - 25);
+        pdf.setFontSize(7);
+        const disclaimer = 'Importante: As informações deste simulador servem apenas para orientação geral e não significam o aconselhamento para a tomada de decisão. Consulte sempre um profissional habilitado.';
+        const splitDisclaimer = pdf.splitTextToSize(disclaimer, pageWidth - margin * 2);
+        pdf.text(splitDisclaimer, margin, pageHeight - 20);
+      }
     }
   };
   
@@ -170,7 +171,7 @@ function generateNativePDF() {
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(...darkHeaderColorRGB);
-    pdf.text(`🏆 Melhor Regime Projetado: ${melhorRegime.value}`, margin + 3, yPos + 7.5);
+    pdf.text(`Melhor Regime Projetado: ${melhorRegime.value}`, margin + 3, yPos + 7.5);
     yPos += 20;
 
     pdf.setTextColor(40);
@@ -188,48 +189,53 @@ function generateNativePDF() {
     autoTable(pdf, { startY: yPos, head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']], body: bodyData, theme: 'grid', headStyles: { fillColor: darkHeaderColorRGB }, foot: [ [ { content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.real.valorImpostos)}`, styles: { fontStyle: 'bold' } }, { content: `R$ ${formatNumber(resultados.value.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } } ] ], footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' }, styles: { halign: 'right' }, columnStyles: { 0: { halign: 'left' } } });
   
   } else {
+    // ########## LÓGICA ATUALIZADA PARA PDF TRIMESTRAL ##########
     if (!resultadosTrimestrais.value) {
       triggerToast('Erro: Calcule os resultados do trimestre antes de gerar o PDF.');
       return;
     }
-
-    pdf.setTextColor(40);
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Dados da Simulação:', margin, yPos);
-    yPos += 2;
     
-    // CORREÇÃO APLICADA AQUI
-    const inputDataGeral = [
-        ['1º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t1}`],
-        ['2º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t2}`],
-        ['3º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t3}`],
-        ['4º Trimestre Faturamento:', `R$ ${inputs.faturamentosTrimestrais.t4}`],
-        ['Receita Bruta (12 Meses):', `R$ ${inputs.rbt12}`],
-        ['Atividade Principal:', `${inputs.anexoSimples.replace('anexo', 'Anexo ')}`],
-        ['Período de Cálculo:', 'Trimestral'],
-    ];
-
-    autoTable(pdf, { startY: yPos, body: inputDataGeral, theme: 'plain', styles: { fontSize: 10, cellPadding: 2 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 }, 1: { halign: 'left' } } });
-    yPos = pdf.lastAutoTable.finalY + 10;
-
     for (let i = 1; i <= 4; i++) {
         const trimKey = `t${i}`;
         const trimData = resultadosTrimestrais.value[trimKey];
+        const despesasTrimestre = inputs.despesasTrimestrais[trimKey];
+        
         if (!trimData || trimData.faturamento === 0) continue;
 
-        checkPageBreak(80);
+        checkPageBreak(120); // Verifica espaço para a seção inteira
+
+        // Separador visual entre os trimestres (exceto o primeiro)
+        if (i > 1) {
+            pdf.setDrawColor(220);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 10;
+        }
 
         pdf.setTextColor(40);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Análise do ${i}º Trimestre`, margin, yPos);
+        yPos += 8;
+
+        const quarterlyInputData = [
+            ['Faturamento do Trimestre:', `R$ ${formatNumber(trimData.faturamento)}`],
+            ['Despesas com Salários:', `R$ ${despesasTrimestre.salarios}`],
+            ['Outras Despesas:', `R$ ${formatNumber(parseNumber(despesasTrimestre.energiaAluguelFretes) + parseNumber(despesasTrimestre.depreciacao) + parseNumber(despesasTrimestre.demaisDespesas))}`]
+        ];
+
+        autoTable(pdf, {
+            startY: yPos,
+            body: quarterlyInputData,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 2 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 }, 1: { halign: 'left' } }
+        });
+        yPos = pdf.lastAutoTable.finalY + 8;
+        
         pdf.setFontSize(12);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`Resumo do ${i}º Trimestre`, margin, yPos);
+        pdf.text(`Resumo de Impostos do Trimestre`, margin, yPos);
         yPos += 2;
-        
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`Faturamento do Período: R$ ${formatNumber(trimData.faturamento)}`, margin, yPos + 5);
-        yPos += 9;
 
         autoTable(pdf, {
             startY: yPos,
@@ -247,9 +253,8 @@ function generateNativePDF() {
         yPos = pdf.lastAutoTable.finalY + 15;
     }
 
-    pdf.addPage();
-    addHeader();
-
+    checkPageBreak(80);
+    
     pdf.setTextColor(40);
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
@@ -265,11 +270,11 @@ function generateNativePDF() {
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(...darkHeaderColorRGB);
-    pdf.text(`🏆 Melhor Regime Projetado (Anual): ${melhorRegime.value}`, margin + 3, yPos + 7.5);
+    pdf.text(`Melhor Regime Projetado (Anual): ${melhorRegime.value}`, margin + 3, yPos + 7.5);
   }
 
   addFooter();
-  pdf.save(`relatorio-tributario-${simulationName.value || 'simulacao'}-${Date.now()}.pdf`);
+  pdf.output('dataurlnewwindow');
 }
 
 
@@ -304,7 +309,7 @@ const defaultInputs = {
     t3: { ...despesaTemplate },
     t4: { ...despesaTemplate },
   },
-  encargos: { ipi: '0,00', iss: '4,00', icms: '0,00', rat: '1,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
+  encargos: { ipi: '0,00', iss: '4,00', icms: '0,00', rat: '1,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestaduais: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
 };
 const inputs = reactive(JSON.parse(JSON.stringify(defaultInputs)));
 
@@ -328,7 +333,7 @@ function resetForm() {
       },
       despesasAnual: { ...emptyDespesa },
       despesasTrimestrais: { t1: { ...emptyDespesa }, t2: { ...emptyDespesa }, t3: { ...emptyDespesa }, t4: { ...emptyDespesa } },
-      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestadual: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
+      encargos: { ipi: '0,00', iss: '0,00', icms: '0,00', rat: '0,00', inss: '20,00', inssTerceiros: '5,80', icmsInterno: '0,00', icmsInterestaduais: '0,00', icmsImportacao: '0,00', ipiEntrada: '0,00', fgts: '8,00' }
     };
     Object.assign(inputs, emptyInputs);
     resultados.value = null;
