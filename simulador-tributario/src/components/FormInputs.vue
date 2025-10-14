@@ -54,6 +54,31 @@
             <option value="anexoV">Anexo V - Serviços (fator R)</option>
           </select>
         </div>
+        
+        <template v-if="modelValue.anexoSimples === 'anexoI'">
+            <div class="form-group span-2">
+                <hr>
+                <h3 class="subsection-title">Detalhamento do Faturamento (Anexo I)</h3>
+            </div>
+            <div class="form-group">
+                <label for="faturamentoComercio">Faturamento Comércio (com ICMS)</label>
+                <input
+                    type="text"
+                    id="faturamentoComercio"
+                    :value="periodo === 'anual' ? modelValue.faturamentoComercio.anual : modelValue.faturamentoComercio.trimestral[activeTab]"
+                    @input="handleAnexoIInput($event, 'faturamentoComercio')"
+                >
+            </div>
+            <div class="form-group">
+                <label for="faturamentoComercioST">Faturamento Comércio ST (sem ICMS)</label>
+                <input
+                    type="text"
+                    id="faturamentoComercioST"
+                    :value="periodo === 'anual' ? modelValue.faturamentoComercioST.anual : modelValue.faturamentoComercioST.trimestral[activeTab]"
+                    @input="handleAnexoIInput($event, 'faturamentoComercioST')"
+                >
+            </div>
+        </template>
       </div>
     </main>
 
@@ -99,7 +124,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { formatNumber } from '../utils/formatters.js';
+import { formatNumber, parseNumber } from '../utils/formatters.js';
 
 const props = defineProps({
   modelValue: Object,
@@ -152,6 +177,35 @@ function handlePercentInput(event, key, category = null) {
   }
   updateField(key, value.replace('.', ','), category);
 }
+
+function handleAnexoIInput(event, field) {
+  const newInputs = { ...props.modelValue };
+  let digits = event.target.value.replace(/\D/g, '');
+  if (digits === '') digits = '0';
+  const numberValue = Number(digits) / 100;
+  const formattedValue = formatNumber(numberValue);
+
+  if (props.periodo === 'anual') {
+    newInputs[field].anual = formattedValue;
+  } else {
+    newInputs[field].trimestral[activeTab.value] = formattedValue;
+  }
+
+  // Atualiza o faturamento total automaticamente
+  const comercioValue = props.periodo === 'anual' ? newInputs.faturamentoComercio.anual : newInputs.faturamentoComercio.trimestral[activeTab.value];
+  const comercioSTValue = props.periodo === 'anual' ? newInputs.faturamentoComercioST.anual : newInputs.faturamentoComercioST.trimestral[activeTab.value];
+
+  const total = parseNumber(comercioValue) + parseNumber(comercioSTValue);
+
+  if (props.periodo === 'anual') {
+      newInputs.faturamentoAnual = formatNumber(total);
+  } else {
+      newInputs.faturamentosTrimestrais[activeTab.value] = formatNumber(total);
+  }
+
+
+  emit('update:modelValue', newInputs);
+}
 </script>
 
 <style scoped>
@@ -184,6 +238,19 @@ label { font-weight: 600; margin-bottom: 0.5rem; font-size: 0.875rem; }
 input, select { width: 100%; padding: 0.75rem; border: 1px solid var(--cor-borda); border-radius: 0.5rem; font-size: 1rem; font-family: 'Poppins', sans-serif; transition: border-color 0.2s, box-shadow 0.2s; background-color: var(--cor-fundo); color: var(--cor-texto); }
 input[type="text"] { text-align: right; }
 input:focus, select:focus { outline: none; border-color: var(--cor-primaria); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-primaria) 20%, transparent); }
+
+.subsection-title {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    color: var(--cor-primaria);
+    font-weight: 600;
+}
+hr {
+    border: none;
+    border-top: 1px solid var(--cor-borda);
+    margin: 1rem 0;
+}
 
 @media (max-width: 768px) {
   .form-grid, .form-grid-3-cols { grid-template-columns: 1fr; }

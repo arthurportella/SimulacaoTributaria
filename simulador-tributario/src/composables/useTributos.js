@@ -10,8 +10,7 @@ const tabelas = {
   anexoV: [ { ate: 180000, aliquota: 0.155, deduzir: 0 }, { ate: 360000, aliquota: 0.18, deduzir: 4500 }, { ate: 720000, aliquota: 0.195, deduzir: 9900 }, { ate: 1800000, aliquota: 0.205, deduzir: 17100 }, { ate: 3600000, aliquota: 0.23, deduzir: 62100 }, { ate: 4800000, aliquota: 0.305, deduzir: 540000 }, ],
 };
 
-// Função auxiliar para somar os valores de um objeto de detalhes
-function somarDetalhes(detalhesArray) {
+function somarDetalhes(detalhesArray, faturamentoTotal) {
   const total = {};
   detalhesArray.forEach(detalhesTrimestre => {
     for (const key in detalhesTrimestre) {
@@ -25,15 +24,23 @@ function somarDetalhes(detalhesArray) {
       }
     }
   });
+
+  if (faturamentoTotal > 0) {
+    for (const key in total) {
+        if (total[key] && typeof total[key] === 'object' && total[key].valor !== undefined) {
+            total[key].aliquota = (total[key].valor / faturamentoTotal) * 100;
+        }
+    }
+  }
+
   return total;
 }
 
 export function useTributos() {
     const resultados = ref(null);
 
-    function calcularSimplesNacional(inputs, faturamentoPeriodo, despesasPeriodo, periodo) {
+    function calcularSimplesNacional(inputs, faturamentoPeriodo, despesasPeriodo, periodo, faturamentoBaseICMS) {
         const { rbt12, anexoSimples, encargos, despesasAnual } = inputs;
-        // O Fator R sempre considera a folha de pagamento dos últimos 12 meses
         const folhaPagamento12m = despesasAnual.salarios + despesasAnual.proLabore;
         if (!rbt12 || !faturamentoPeriodo) return { valorImpostos: 0, anexo: 'N/A', detalhes: {} };
         
@@ -66,7 +73,7 @@ export function useTributos() {
 
         if (faturamentoTotalAnual > sublimite) {
             issForaDoSimples = faturamentoPeriodo * aliquotaIss;
-            icmsForaDoSimples = faturamentoPeriodo * aliquotaIcms;
+            icmsForaDoSimples = faturamentoBaseICMS * aliquotaIcms;
         }
 
         const valorImpostos = impostoPrincipalDAS + fgts + issForaDoSimples + icmsForaDoSimples;
@@ -81,7 +88,7 @@ export function useTributos() {
         return { valorImpostos, anexo: nomeAnexo.toUpperCase(), detalhes };
     }
 
-    function calcularLucroPresumido(inputs, faturamentoPeriodo, despesasPeriodo) {
+    function calcularLucroPresumido(inputs, faturamentoPeriodo, despesasPeriodo, faturamentoBaseICMS, periodo) {
         const { encargos } = inputs;
         if (!faturamentoPeriodo) return { valorImpostos: 0, detalhes: {} };
 
@@ -91,12 +98,14 @@ export function useTributos() {
         const pis = faturamentoPeriodo * aliquotaPis;
         const cofins = faturamentoPeriodo * aliquotaCofins;
         const baseCalculoIRPJCSLL = faturamentoPeriodo * aliquotaBasePresuncao;
-        const limiteAdicionalTrimestral = 60000;
+        
+        // CORREÇÃO APLICADA AQUI
+        const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
         
         const irpjPrincipal = baseCalculoIRPJCSLL * aliquotaIrpjPrincipal;
         let adicionalIRPJ = 0;
-        if (baseCalculoIRPJCSLL > limiteAdicionalTrimestral) {
-            adicionalIRPJ = (baseCalculoIRPJCSLL - limiteAdicionalTrimestral) * aliquotaIrpjAdicional;
+        if (baseCalculoIRPJCSLL > limiteAdicional) {
+            adicionalIRPJ = (baseCalculoIRPJCSLL - limiteAdicional) * aliquotaIrpjAdicional;
         }
         const irpj = irpjPrincipal + adicionalIRPJ;
         const csll = baseCalculoIRPJCSLL * aliquotaCsll;
@@ -109,7 +118,7 @@ export function useTributos() {
 
         const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
         const baseFolhaSalarios = despesasPeriodo.salarios;
-        const iss = faturamentoPeriodo * aliquotaIss; const icms = faturamentoPeriodo * aliquotaIcms;
+        const iss = faturamentoPeriodo * aliquotaIss; const icms = faturamentoBaseICMS * aliquotaIcms;
         const ipi = faturamentoPeriodo * aliquotaIpi; const inss = folhaTotal * aliquotaInss;
         const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros; const rat = baseFolhaSalarios * aliquotaRat;
         const fgts = baseFolhaSalarios * aliquotaFgts;
@@ -132,7 +141,7 @@ export function useTributos() {
         return { valorImpostos, detalhes };
     }
 
-    function calcularLucroReal(inputs, faturamentoPeriodo, despesasPeriodo) {
+    function calcularLucroReal(inputs, faturamentoPeriodo, despesasPeriodo, faturamentoBaseICMS, periodo) {
         const { encargos } = inputs;
         if (!faturamentoPeriodo) return { valorImpostos: 0, detalhes: {} };
 
@@ -152,7 +161,7 @@ export function useTributos() {
         
         const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
         const baseFolhaSalarios = despesasPeriodo.salarios;
-        const iss = faturamentoPeriodo * aliquotaIss; const icms = faturamentoPeriodo * aliquotaIcms;
+        const iss = faturamentoPeriodo * aliquotaIss; const icms = faturamentoBaseICMS * aliquotaIcms;
         const ipi = faturamentoPeriodo * aliquotaIpi; const inss = folhaTotal * aliquotaInss;
         const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros; const rat = baseFolhaSalarios * aliquotaRat;
         const fgts = baseFolhaSalarios * aliquotaFgts;
@@ -163,10 +172,11 @@ export function useTributos() {
 
         let irpjPrincipal = 0; let adicionalIRPJ = 0; let csll = 0;
         if (lucroAntesIRCS > 0) {
-            const limiteAdicionalTrimestral = 60000;
+            // CORREÇÃO APLICADA AQUI
+            const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
             irpjPrincipal = lucroAntesIRCS * aliquotaIrpjPrincipal;
-            if (lucroAntesIRCS > limiteAdicionalTrimestral) {
-                adicionalIRPJ = (lucroAntesIRCS - limiteAdicionalTrimestral) * aliquotaIrpjAdicional;
+            if (lucroAntesIRCS > limiteAdicional) {
+                adicionalIRPJ = (lucroAntesIRCS - limiteAdicional) * aliquotaIrpjAdicional;
             }
             csll = lucroAntesIRCS * aliquotaCsll;
         }
@@ -199,17 +209,18 @@ export function useTributos() {
         if (periodo === 'anual') {
             faturamentoTotal = inputs.faturamentoAnual;
             const despesasPeriodo = { ...inputs.despesasAnual };
+            const faturamentoBaseICMS = inputs.anexoSimples === 'anexoI' ? inputs.faturamentoComercio.anual : faturamentoTotal;
 
-            const simplesResult = calcularSimplesNacional(inputs, faturamentoTotal, despesasPeriodo, periodo);
+            const simplesResult = calcularSimplesNacional(inputs, faturamentoTotal, despesasPeriodo, periodo, faturamentoBaseICMS);
             totais.simples.valorImpostos = simplesResult.valorImpostos;
             totais.simples.detalhes.push(simplesResult.detalhes);
             totais.simples.anexo = simplesResult.anexo;
 
-            const presumidoResult = calcularLucroPresumido(inputs, faturamentoTotal, despesasPeriodo);
+            const presumidoResult = calcularLucroPresumido(inputs, faturamentoTotal, despesasPeriodo, faturamentoBaseICMS, periodo);
             totais.presumido.valorImpostos = presumidoResult.valorImpostos;
             totais.presumido.detalhes.push(presumidoResult.detalhes);
             
-            const realResult = calcularLucroReal(inputs, faturamentoTotal, despesasPeriodo);
+            const realResult = calcularLucroReal(inputs, faturamentoTotal, despesasPeriodo, faturamentoBaseICMS, periodo);
             totais.real.valorImpostos = realResult.valorImpostos;
             totais.real.detalhes.push(realResult.detalhes);
 
@@ -220,23 +231,24 @@ export function useTributos() {
             for (const trim of ['t1', 't2', 't3', 't4']) {
                 const faturamentoTrimestre = inputs.faturamentosTrimestrais[trim];
                 const despesasTrimestre = inputs.despesasTrimestrais[trim];
+                const faturamentoBaseICMSTrimestre = inputs.anexoSimples === 'anexoI' ? inputs.faturamentoComercio.trimestral[trim] : faturamentoTrimestre;
                 
-                const simplesResult = calcularSimplesNacional(inputs, faturamentoTrimestre, despesasTrimestre, periodo);
+                const simplesResult = calcularSimplesNacional(inputs, faturamentoTrimestre, despesasTrimestre, periodo, faturamentoBaseICMSTrimestre);
                 totais.simples.valorImpostos += simplesResult.valorImpostos;
                 totais.simples.detalhes.push(simplesResult.detalhes);
                 totais.simples.anexo = simplesResult.anexo;
 
-                const presumidoResult = calcularLucroPresumido(inputs, faturamentoTrimestre, despesasTrimestre);
+                const presumidoResult = calcularLucroPresumido(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
                 totais.presumido.valorImpostos += presumidoResult.valorImpostos;
                 totais.presumido.detalhes.push(presumidoResult.detalhes);
                 
-                const realResult = calcularLucroReal(inputs, faturamentoTrimestre, despesasTrimestre);
+                const realResult = calcularLucroReal(inputs, faturamentoTrimestre, despesasTrimestre, faturamentoBaseICMSTrimestre, periodo);
                 totais.real.valorImpostos += realResult.valorImpostos;
                 totais.real.detalhes.push(realResult.detalhes);
             }
         }
 
-        const detalhesSimples = { ...somarDetalhes(totais.simples.detalhes), 'simples nacional (DAS)': somarDetalhes(totais.simples.detalhes).simplesNacional, pis_pasep: '-', cofins: '-', irpj: '-', adicionalIRPJ: '-', csll: '-', ipi: '-', inss: '-', inssTerceiros: '-', rat: '-' };
+        const detalhesSimples = { ...somarDetalhes(totais.simples.detalhes, faturamentoTotal), 'simples nacional (DAS)': somarDetalhes(totais.simples.detalhes, faturamentoTotal).simplesNacional, pis_pasep: '-', cofins: '-', irpj: '-', adicionalIRPJ: '-', csll: '-', ipi: '-', inss: '-', inssTerceiros: '-', rat: '-' };
         if (detalhesSimples.simplesNacional) delete detalhesSimples.simplesNacional;
 
         resultados.value = {
@@ -249,12 +261,12 @@ export function useTributos() {
             presumido: {
                 valorImpostos: totais.presumido.valorImpostos,
                 cargaTributariaPercentual: faturamentoTotal > 0 ? (totais.presumido.valorImpostos / faturamentoTotal) * 100 : 0,
-                detalhes: { ...somarDetalhes(totais.presumido.detalhes), 'simples nacional (DAS)': '-' },
+                detalhes: { ...somarDetalhes(totais.presumido.detalhes, faturamentoTotal), 'simples nacional (DAS)': '-' },
             },
             real: {
                 valorImpostos: totais.real.valorImpostos,
                 cargaTributariaPercentual: faturamentoTotal > 0 ? (totais.real.valorImpostos / faturamentoTotal) * 100 : 0,
-                detalhes: { ...somarDetalhes(totais.real.detalhes), 'simples nacional (DAS)': '-' },
+                detalhes: { ...somarDetalhes(totais.real.detalhes, faturamentoTotal), 'simples nacional (DAS)': '-' },
             },
         };
     }
