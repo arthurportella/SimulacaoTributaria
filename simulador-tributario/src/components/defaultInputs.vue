@@ -69,7 +69,7 @@ import ToastNotification from './components/ToastNotification.vue';
 
 const periodo = ref('anual');
 
-// Lógica de PDF (sem alterações)
+// --- LÓGICA DE EXPORTAÇÃO PARA PDF (SEM ALTERAÇÕES) ---
 function generateNativePDF() {
   triggerToast('Gerando relatório profissional em PDF...');
   const pdf = new jsPDF('p', 'mm', 'a4');
