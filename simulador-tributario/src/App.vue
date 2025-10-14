@@ -129,13 +129,6 @@ function generateNativePDF() {
       }
     }
   };
-  
-  const checkPageBreak = (neededSpace) => {
-      if (yPos + neededSpace > pageHeight - 30) {
-          pdf.addPage();
-          addHeader();
-      }
-  }
 
   addHeader(true);
 
@@ -202,13 +195,9 @@ function generateNativePDF() {
         
         if (!trimData || trimData.faturamento === 0) continue;
 
-        checkPageBreak(120); // Verifica espaço para a seção inteira
-
-        // Separador visual entre os trimestres (exceto o primeiro)
         if (i > 1) {
-            pdf.setDrawColor(220);
-            pdf.line(margin, yPos, pageWidth - margin, yPos);
-            yPos += 10;
+            pdf.addPage();
+            addHeader();
         }
 
         pdf.setTextColor(40);
@@ -220,7 +209,7 @@ function generateNativePDF() {
         const quarterlyInputData = [
             ['Faturamento do Trimestre:', `R$ ${formatNumber(trimData.faturamento)}`],
             ['Despesas com Salários:', `R$ ${despesasTrimestre.salarios}`],
-            ['Outras Despesas:', `R$ ${formatNumber(parseNumber(despesasTrimestre.energiaAluguelFretes) + parseNumber(despesasTrimestre.depreciacao) + parseNumber(despesasTrimestre.demaisDespesas))}`]
+            ['Outras Despesas do Trimestre:', `R$ ${formatNumber(parseNumber(despesasTrimestre.energiaAluguelFretes) + parseNumber(despesasTrimestre.depreciacao) + parseNumber(despesasTrimestre.demaisDespesas))}`]
         ];
 
         autoTable(pdf, {
@@ -250,11 +239,41 @@ function generateNativePDF() {
             styles: { halign: 'right' },
             columnStyles: { 0: { halign: 'left' } },
         });
-        yPos = pdf.lastAutoTable.finalY + 15;
+        yPos = pdf.lastAutoTable.finalY + 8;
+
+        // NOVA TABELA DE DETALHAMENTO TRIMESTRAL
+        pdf.setFontSize(12);
+        pdf.text('Detalhamento dos Cálculos do Trimestre', margin, yPos);
+        yPos += 2;
+        
+        const bodyDataTrimestral = tributosDetalhados.map(t => {
+            const pVal = trimData.presumido.detalhes[t.key]?.valor;
+            const rVal = trimData.real.detalhes[t.key]?.valor;
+            const sVal = trimData.simples.detalhes[t.key]?.valor;
+            return [t.nome, pVal > 0 ? `R$ ${formatNumber(pVal)}` : '-', rVal > 0 ? `R$ ${formatNumber(rVal)}` : '-', sVal > 0 ? `R$ ${formatNumber(sVal)}` : '-']
+        });
+
+        autoTable(pdf, {
+            startY: yPos,
+            head: [['Tributo', 'Lucro Presumido (R$)', 'Lucro Real (R$)', 'Simples Nacional (R$)']],
+            body: bodyDataTrimestral,
+            theme: 'grid',
+            headStyles: { fillColor: darkHeaderColorRGB },
+            foot: [[
+                { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+                { content: `R$ ${formatNumber(trimData.presumido.valorImpostos)}`, styles: { fontStyle: 'bold' } },
+                { content: `R$ ${formatNumber(trimData.real.valorImpostos)}`, styles: { fontStyle: 'bold' } },
+                { content: `R$ ${formatNumber(trimData.simples.valorImpostos)}`, styles: { fontStyle: 'bold' } },
+            ]],
+            footStyles: { fillColor: [236, 240, 241], textColor: 0, fontStyle: 'bold' },
+            styles: { halign: 'right' },
+            columnStyles: { 0: { halign: 'left' } },
+        });
     }
 
-    checkPageBreak(80);
-    
+    pdf.addPage();
+    addHeader();
+
     pdf.setTextColor(40);
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
@@ -395,7 +414,7 @@ function loadSimulation(index) { const snapshot = history.value[index]; Object.a
 function deleteSimulation(index) { const deletedName = history.value[index].name; if (confirm(`Tem certeza que deseja excluir a simulação "${deletedName}"?`)) { history.value.splice(index, 1); localStorage.setItem('simulationHistory', JSON.stringify(history.value)); triggerToast(`Simulação "${deletedName}" excluída.`); } }
 
 const despesasConfig = [ { key: 'proLabore', label: 'Pró-labore' }, { key: 'salarios', label: 'Salários' }, { key: 'comprasInternas', label: 'Compras Internas' }, { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, { key: 'comprasImportadas', label: 'Compras Importadas' }, { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, { key: 'depreciacao', label: 'Depreciação' }, { key: 'demaisDespesas', label: 'Demais Despesas' }, ];
-const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
+const encargosConfig = [ { key: 'ipi', label: 'IPI' }, { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'rat', label: 'RAT' }, { key: 'inss', label: 'INSS' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestaduais' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }, ];
 const tributosDetalhados = [ { key: 'pis_pasep', nome: 'PIS/PASEP' }, { key: 'cofins', nome: 'COFINS' }, { key: 'irpj', nome: 'IRPJ' }, { key: 'adicionalIRPJ', nome: 'ADICIONAL DE IRPJ' }, { key: 'csll', nome: 'CSLL' }, { key: 'ipi', nome: 'IPI' }, { key: 'iss', nome: 'ISS' }, { key: 'icms', nome: 'ICMS' }, { key: 'simples nacional (DAS)', nome: 'SIMPLES NACIONAL (DAS)' }, { key: 'inss', nome: 'INSS' }, { key: 'inssTerceiros', nome: 'INSS TERCEIROS' }, { key: 'rat', nome: 'RAT' }, { key: 'fgts', nome: 'FGTS' }, ];
 const { resultados, resultadosTrimestrais, simularImpostos, rankedResults, melhorRegime } = useTributos();
 </script>
