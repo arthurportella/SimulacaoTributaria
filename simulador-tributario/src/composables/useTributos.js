@@ -92,58 +92,93 @@ export function useTributos() {
     }
 
     function calcularLucroPresumido(inputs, faturamentoPeriodo, despesasPeriodo, faturamentoBaseICMS, periodo) {
-        const { encargos } = inputs;
-        if (!faturamentoPeriodo) return { valorImpostos: 0, detalhes: {} };
+            // Extraímos também o 'anexoSimples' dos inputs para verificar se é Comércio (Anexo I)
+            const { encargos, anexoSimples } = inputs;
+            
+            if (!faturamentoPeriodo) return { valorImpostos: 0, detalhes: {} };
 
-        const aliquotaPis = 0.0065; const aliquotaCofins = 0.03; const aliquotaBasePresuncao = 0.32;
-        const aliquotaIrpjPrincipal = 0.15; const aliquotaIrpjAdicional = 0.10; const aliquotaCsll = 0.09;
+            const aliquotaPis = 0.0065; 
+            const aliquotaCofins = 0.03; 
+            const aliquotaIrpjPrincipal = 0.15; 
+            const aliquotaIrpjAdicional = 0.10; 
+            const aliquotaCsll = 0.09;
 
-        const pis = faturamentoPeriodo * aliquotaPis;
-        const cofins = faturamentoPeriodo * aliquotaCofins;
-        const baseCalculoIRPJCSLL = faturamentoPeriodo * aliquotaBasePresuncao;
-        
-        const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
-        
-        const irpjPrincipal = baseCalculoIRPJCSLL * aliquotaIrpjPrincipal;
-        let adicionalIRPJ = 0;
-        if (baseCalculoIRPJCSLL > limiteAdicional) {
-            adicionalIRPJ = (baseCalculoIRPJCSLL - limiteAdicional) * aliquotaIrpjAdicional;
+            // LÓGICA DE PRESUNÇÃO (COMÉRCIO vs SERVIÇO)
+            // Se for Anexo I, usamos base de Comércio (8% IRPJ, 12% CSLL).
+            // Caso contrário, mantemos 32% para ambos (Serviços).
+            const isComercio = anexoSimples === 'anexoI';
+            const basePresuncaoIrpj = isComercio ? 0.08 : 0.32;
+            const basePresuncaoCsll = isComercio ? 0.12 : 0.32;
+
+            // 1. PIS e COFINS
+            const pis = faturamentoPeriodo * aliquotaPis;
+            const cofins = faturamentoPeriodo * aliquotaCofins;
+
+            // 2. IRPJ (Baseada na presunção definida acima)
+            const baseCalculoIrpj = faturamentoPeriodo * basePresuncaoIrpj;
+            
+            // Limite de isenção do adicional (20k/mês -> 60k trimestre ou 240k anual)
+            const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
+            
+            const irpjPrincipal = baseCalculoIrpj * aliquotaIrpjPrincipal;
+            let adicionalIRPJ = 0;
+
+            // O adicional incide apenas sobre a parcela do LUCRO PRESUMIDO que excede o limite
+            if (baseCalculoIrpj > limiteAdicional) {
+                adicionalIRPJ = (baseCalculoIrpj - limiteAdicional) * aliquotaIrpjAdicional;
+            }
+            const irpj = irpjPrincipal + adicionalIRPJ;
+
+            // 3. CSLL (Baseada na presunção definida acima)
+            const baseCalculoCsll = faturamentoPeriodo * basePresuncaoCsll;
+            const csll = baseCalculoCsll * aliquotaCsll;
+
+            const impostosFederais = pis + cofins + irpj + csll;
+
+            // --- Encargos e Outros Impostos (Mantido a lógica original) ---
+            const aliquotaInss = encargos.inss / 100; const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
+            const aliquotaRat = encargos.rat / 100; const aliquotaFgts = encargos.fgts / 100;
+            const aliquotaIss = encargos.iss / 100; const aliquotaIcms = encargos.icms / 100;
+            const aliquotaIpi = encargos.ipi / 100;
+
+            const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
+            const baseFolhaSalarios = despesasPeriodo.salarios;
+            
+            // Ajuste: Se for comércio (Anexo I), geralmente não há ISS, mas sim ICMS.
+            // O código já lida com isso se você passar 0 no input de alíquota de ISS, 
+            // mas aqui calculamos conforme os inputs fornecidos.
+            const iss = faturamentoPeriodo * aliquotaIss;
+            const icms = faturamentoBaseICMS * aliquotaIcms;
+            const ipi = faturamentoPeriodo * aliquotaIpi; 
+            
+            const inss = folhaTotal * aliquotaInss;
+            const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros; 
+            const rat = baseFolhaSalarios * aliquotaRat;
+            const fgts = baseFolhaSalarios * aliquotaFgts;
+
+            const outrosEncargos = iss + icms + ipi + inss + inssTerceiros + rat + fgts;
+            const valorImpostos = impostosFederais + outrosEncargos;
+
+            const aliquotaAdicionalIRPJFaturamento = faturamentoPeriodo > 0 ? (adicionalIRPJ / faturamentoPeriodo) : 0;
+            
+            const detalhes = {
+                pis_pasep: { aliquota: aliquotaPis * 100, valor: pis },
+                cofins: { aliquota: aliquotaCofins * 100, valor: cofins },
+                irpj: { aliquota: basePresuncaoIrpj * aliquotaIrpjPrincipal * 100, valor: irpjPrincipal }, // Exibe a alíquota efetiva sobre o faturamento
+                adicionalIRPJ: { aliquota: aliquotaAdicionalIRPJFaturamento * 100, valor: adicionalIRPJ },
+                csll: { aliquota: basePresuncaoCsll * aliquotaCsll * 100, valor: csll }, // Exibe a alíquota efetiva sobre o faturamento
+                ipi: { aliquota: aliquotaIpi * 100, valor: ipi }, 
+                iss: { aliquota: aliquotaIss * 100, valor: iss },
+                icms: { aliquota: faturamentoBaseICMS > 0 ? aliquotaIcms * 100 : 0, valor: icms }, 
+                inss: { aliquota: aliquotaInss * 100, valor: inss },
+                inssTerceiros: { aliquota: aliquotaInssTerceiros * 100, valor: inssTerceiros },
+                rat: { aliquota: aliquotaRat * 100, valor: rat }, 
+                fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
+                // Debug info (opcional, ajuda a confirmar se usou a base certa)
+                infoBase: isComercio ? 'Comércio (8%/12%)' : 'Serviço (32%)' 
+            };
+            return { valorImpostos, detalhes };
         }
-        const irpj = irpjPrincipal + adicionalIRPJ;
-        const csll = baseCalculoIRPJCSLL * aliquotaCsll;
-        const impostosFederais = pis + cofins + irpj + csll;
-
-        const aliquotaInss = encargos.inss / 100; const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
-        const aliquotaRat = encargos.rat / 100; const aliquotaFgts = encargos.fgts / 100;
-        const aliquotaIss = encargos.iss / 100; const aliquotaIcms = encargos.icms / 100;
-        const aliquotaIpi = encargos.ipi / 100;
-
-        const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
-        const baseFolhaSalarios = despesasPeriodo.salarios;
-        const iss = faturamentoPeriodo * aliquotaIss;
-        const icms = faturamentoBaseICMS * aliquotaIcms;
-        const ipi = faturamentoPeriodo * aliquotaIpi; const inss = folhaTotal * aliquotaInss;
-        const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros; const rat = baseFolhaSalarios * aliquotaRat;
-        const fgts = baseFolhaSalarios * aliquotaFgts;
-
-        const outrosEncargos = iss + icms + ipi + inss + inssTerceiros + rat + fgts;
-        const valorImpostos = impostosFederais + outrosEncargos;
-
-        const aliquotaAdicionalIRPJFaturamento = faturamentoPeriodo > 0 ? (adicionalIRPJ / faturamentoPeriodo) : 0;
-        const detalhes = {
-            pis_pasep: { aliquota: aliquotaPis * 100, valor: pis },
-            cofins: { aliquota: aliquotaCofins * 100, valor: cofins },
-            irpj: { aliquota: aliquotaBasePresuncao * aliquotaIrpjPrincipal * 100, valor: irpjPrincipal },
-            adicionalIRPJ: { aliquota: aliquotaAdicionalIRPJFaturamento * 100, valor: adicionalIRPJ },
-            csll: { aliquota: aliquotaBasePresuncao * aliquotaCsll * 100, valor: csll },
-            ipi: { aliquota: aliquotaIpi * 100, valor: ipi }, iss: { aliquota: aliquotaIss * 100, valor: iss },
-            icms: { aliquota: faturamentoBaseICMS > 0 ? aliquotaIcms * 100 : 0, valor: icms }, 
-            inss: { aliquota: aliquotaInss * 100, valor: inss },
-            inssTerceiros: { aliquota: aliquotaInssTerceiros * 100, valor: inssTerceiros },
-            rat: { aliquota: aliquotaRat * 100, valor: rat }, fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
-        };
-        return { valorImpostos, detalhes };
-    }
 
     function calcularLucroReal(inputs, faturamentoPeriodo, despesasPeriodo, faturamentoBaseICMS, periodo) {
         const { encargos } = inputs;
