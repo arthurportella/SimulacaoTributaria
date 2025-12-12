@@ -39,8 +39,14 @@
           </tr>
         </tbody>
         <tfoot>
-          <tr>
-            <td><strong>TOTAL</strong></td>
+          <tr class="subtotal-row">
+            <td><strong>Total s/ FGTS</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.presumido.valorImpostos - (resultados.presumido.detalhes.fgts?.valor || 0)) }}</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.real.valorImpostos - (resultados.real.detalhes.fgts?.valor || 0)) }}</strong></td>
+            <td colspan="2"><strong>R$ {{ formatNumber(resultados.simples.valorImpostos - (resultados.simples.detalhes.fgts?.valor || 0)) }}</strong></td>
+          </tr>
+          <tr class="total-row">
+            <td><strong>TOTAL GERAL</strong></td>
             <td colspan="2"><strong>R$ {{ formatNumber(resultados.presumido.valorImpostos) }}</strong></td>
             <td colspan="2"><strong>R$ {{ formatNumber(resultados.real.valorImpostos) }}</strong></td>
             <td colspan="2"><strong>R$ {{ formatNumber(resultados.simples.valorImpostos) }}</strong></td>
@@ -53,7 +59,6 @@
 
 <script setup>
 import { ref } from 'vue';
-// Importação correta das funções
 import { formatNumber, formatValue, formatTaxRate } from '../utils/formatters.js';
 
 const isDetailsVisible = ref(false);
@@ -77,41 +82,20 @@ defineProps({
 .toggle-arrow.open { transform: rotate(180deg); }
 
 .details-table-container { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--cor-borda); overflow-x: auto; }
-.details-table { 
-    width: 100%; 
-    border-collapse: collapse; 
-    table-layout: fixed;
-}
+.details-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
-/* Estilo base para todas as células de dados e cabeçalhos */
-.details-table th, .details-table td { 
-    padding: 0.75rem 0.5rem; 
-    border-bottom: 1px solid var(--cor-borda); 
-    font-size: 0.875rem;
-    /* Alinhamento principal: Centralizado para todas as colunas de dados e cabeçalhos */
-    text-align: center;
-}
-
-/* 1. Alinhamento da coluna Tributo: Esquerda */
-.details-table td:first-child, 
-.details-table th:first-child { 
-    text-align: left; 
-    font-weight: 500; 
-}
-
-/* 2. REMOVEMOS O text-align: right para as Alíquotas (colunas 2, 4, 6). 
-   Elas agora herdam o text-align: center do estilo base, garantindo a simetria. */
+.details-table th, .details-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid var(--cor-borda); font-size: 0.875rem; text-align: center; }
+.details-table td:first-child, .details-table th:first-child { text-align: left; font-weight: 500; }
 
 .details-table th { background-color: var(--cor-fundo); font-weight: 600; }
 .details-table tbody tr:nth-child(even) { background-color: var(--cor-fundo); }
 .details-table tfoot { border-top: 2px solid var(--cor-texto-suave); font-size: 1.1rem; }
 
-/* Ajuste específico para as colunas de TOTAL no tfoot */
-.details-table tfoot td {
-    padding-right: 1.5rem;
-    text-align: center !important; 
-}
-.details-table tfoot td:first-child {
-    text-align: left !important;
-}
+/* CORREÇÃO: Usando a variável em vez da cor fixa */
+.subtotal-row td { background-color: var(--cor-tabela-subtotal); color: var(--cor-texto-suave); font-size: 0.95rem; }
+
+.total-row td { font-weight: bold; color: var(--cor-texto); }
+
+.details-table tfoot td { padding-right: 1.5rem; text-align: center !important; }
+.details-table tfoot td:first-child { text-align: left !important; }
 </style>

@@ -12,9 +12,13 @@
   --cor-bom-fundo: #e8f5e9;
   --cor-bom-borda: #a5d6a7;
   --cor-medio-fundo: #fffde7;
-  --cor-medio-borda: #fff59d;
+  --cor-medio-borda: #fbc02d;
   --cor-ruim-fundo: #ffebee;
   --cor-ruim-borda: #ef9a9a;
+  
+  /* NOVA VARIÁVEL PARA A LINHA DE SUBTOTAL */
+  --cor-tabela-subtotal: #f9f9f9; 
+  
   --raio-borda: 12px;
 }
 
@@ -34,6 +38,9 @@
   --cor-medio-borda: #fbc02d;
   --cor-ruim-fundo: #3e2723;
   --cor-ruim-borda: #d32f2f;
+
+  /* COR ESCURA PARA O SUBTOTAL NO MODO NOTURNO */
+  --cor-tabela-subtotal: #2c2c2c; 
 }
 
 body {
