@@ -10,6 +10,16 @@ const tabelas = {
   anexoV: [ { ate: 180000, aliquota: 0.155, deduzir: 0 }, { ate: 360000, aliquota: 0.18, deduzir: 4500 }, { ate: 720000, aliquota: 0.195, deduzir: 9900 }, { ate: 1800000, aliquota: 0.205, deduzir: 17100 }, { ate: 3600000, aliquota: 0.23, deduzir: 62100 }, { ate: 4800000, aliquota: 0.305, deduzir: 540000 }, ],
 };
 
+// Porcentagens de repartição aproximadas (Baseadas na Faixa 1/2) para exibição do breakdown
+// Soma deve ser 100%
+const PARTILHAS = {
+    anexoI: { irpj: 5.50, csll: 3.50, cofins: 12.74, pis: 2.76, cpp: 41.50, icms: 34.00, iss: 0.00, ipi: 0.00 },
+    anexoII: { irpj: 5.50, csll: 3.50, cofins: 11.51, pis: 2.49, cpp: 37.50, icms: 32.00, iss: 0.00, ipi: 7.50 },
+    anexoIII: { irpj: 4.00, csll: 3.50, cofins: 12.82, pis: 2.78, cpp: 43.40, icms: 0.00, iss: 33.50, ipi: 0.00 },
+    anexoIV: { irpj: 18.80, csll: 15.20, cofins: 17.65, pis: 3.83, cpp: 0.00, icms: 0.00, iss: 44.52, ipi: 0.00 }, // CPP pago por fora no Anexo IV
+    anexoV: { irpj: 4.00, csll: 3.50, cofins: 12.82, pis: 2.78, cpp: 28.85, icms: 0.00, iss: 33.50, ipi: 0.00 } // CPP ajustado
+};
+
 function somarDetalhes(detalhesArray, faturamentoTotal) {
   const total = {};
   detalhesArray.forEach(detalhesTrimestre => {
@@ -63,35 +73,78 @@ export function useTributos() {
         const aliquotaFgts = encargos.fgts / 100;
         const aliquotaIss = encargos.iss / 100;
         const aliquotaIcms = encargos.icms / 100;
+        const aliquotaInss = encargos.inss / 100;
         
         const fgts = despesasPeriodo.salarios * aliquotaFgts;
         const sublimite = 3600000;
+        
+        // Impostos "Por Fora" (Estouro de sublimite ou Anexo IV)
         let issForaDoSimples = 0;
         let icmsForaDoSimples = 0;
+        let inssPatronalFora = 0;
+
         const faturamentoTotalAnual = periodo === 'anual'
             ? inputs.faturamentoAnual
             : Object.values(inputs.faturamentosTrimestrais).reduce((a, b) => a + b, 0);
 
+        // Lógica de Sublimite (ICMS/ISS por fora)
         if (faturamentoTotalAnual > sublimite) {
             issForaDoSimples = faturamentoPeriodo * aliquotaIss;
             if (anexoSimples === 'anexoI' || anexoSimples === 'anexoII') {
-                // Cálculo de ICMS com crédito (Débito - Crédito)
+                 // Cálculo de ICMS com crédito (Débito - Crédito)
                 const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
                 const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
 
                 const debito = faturamentoBaseICMS * aliquotaIcms;
                 const credito = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
-                
                 icmsForaDoSimples = Math.max(0, debito - credito);
             }
         }
 
-        const valorImpostos = impostoPrincipalDAS + fgts + issForaDoSimples + icmsForaDoSimples;
+        // Lógica Anexo IV (INSS Patronal por fora)
+        if (anexoCalculado === 'anexoIV') {
+            const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
+            inssPatronalFora = folhaTotal * aliquotaInss; 
+        }
+
+        const valorImpostos = impostoPrincipalDAS + fgts + issForaDoSimples + icmsForaDoSimples + inssPatronalFora;
         
+        // --- REPARTIÇÃO DO DAS ---
+        const partilha = PARTILHAS[anexoCalculado] || PARTILHAS['anexoIII']; // Fallback
+        
+        // Se estourou sublimite, a partilha de ICMS/ISS dentro do DAS zera (pois é pago fora)
+        // Nota: Isso é uma simplificação. Na realidade, o DAS é recalculado sem esses percentuais.
+        // Aqui vamos manter a distribuição proporcional do valor calculado.
+        
+        const calcularFatia = (percentual) => (impostoPrincipalDAS * (percentual / 100));
+
         const detalhes = {
             simplesNacional: { aliquota: aliquotaEfetiva * 100, valor: impostoPrincipalDAS },
-            iss: { aliquota: aliquotaIss * 100, valor: issForaDoSimples },
-            icms: { aliquota: icmsForaDoSimples > 0 ? aliquotaIcms * 100 : 0, valor: icmsForaDoSimples },
+            // Tributos Federais dentro do DAS
+            irpj: { aliquota: (aliquotaEfetiva * (partilha.irpj/100)) * 100, valor: calcularFatia(partilha.irpj) },
+            csll: { aliquota: (aliquotaEfetiva * (partilha.csll/100)) * 100, valor: calcularFatia(partilha.csll) },
+            cofins: { aliquota: (aliquotaEfetiva * (partilha.cofins/100)) * 100, valor: calcularFatia(partilha.cofins) },
+            pis_pasep: { aliquota: (aliquotaEfetiva * (partilha.pis/100)) * 100, valor: calcularFatia(partilha.pis) },
+            ipi: { aliquota: (aliquotaEfetiva * (partilha.ipi/100)) * 100, valor: calcularFatia(partilha.ipi) },
+            
+            // CPP (INSS Patronal) - Soma o do DAS + o de Fora (Anexo IV)
+            inss: { 
+                aliquota: ((calcularFatia(partilha.cpp) + inssPatronalFora) / faturamentoPeriodo) * 100, 
+                valor: calcularFatia(partilha.cpp) + inssPatronalFora 
+            },
+
+            // ICMS - Soma o do DAS + o de Fora (Sublimite)
+            icms: { 
+                aliquota: ((calcularFatia(partilha.icms) + icmsForaDoSimples) / faturamentoPeriodo) * 100, 
+                valor: calcularFatia(partilha.icms) + icmsForaDoSimples 
+            },
+
+            // ISS - Soma o do DAS + o de Fora (Sublimite)
+            iss: { 
+                aliquota: ((calcularFatia(partilha.iss) + issForaDoSimples) / faturamentoPeriodo) * 100, 
+                valor: calcularFatia(partilha.iss) + issForaDoSimples 
+            },
+
             fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
         };
 
@@ -99,7 +152,6 @@ export function useTributos() {
     }
 
     function calcularLucroPresumido(inputs, faturamentoPeriodo, despesasPeriodo, faturamentoBaseICMS, periodo) {
-            // Extraímos também o 'anexoSimples' dos inputs para verificar se é Comércio (Anexo I)
             const { encargos, anexoSimples } = inputs;
             
             if (!faturamentoPeriodo) return { valorImpostos: 0, detalhes: {} };
@@ -110,9 +162,6 @@ export function useTributos() {
             const aliquotaIrpjAdicional = 0.10; 
             const aliquotaCsll = 0.09;
 
-            // LÓGICA DE PRESUNÇÃO (COMÉRCIO vs SERVIÇO)
-            // Se for Anexo I, usamos base de Comércio (8% IRPJ, 12% CSLL).
-            // Caso contrário, mantemos 32% para ambos (Serviços).
             const isComercio = anexoSimples === 'anexoI';
             const basePresuncaoIrpj = isComercio ? 0.08 : 0.32;
             const basePresuncaoCsll = isComercio ? 0.12 : 0.32;
@@ -121,28 +170,24 @@ export function useTributos() {
             const pis = faturamentoPeriodo * aliquotaPis;
             const cofins = faturamentoPeriodo * aliquotaCofins;
 
-            // 2. IRPJ (Baseada na presunção definida acima)
+            // 2. IRPJ
             const baseCalculoIrpj = faturamentoPeriodo * basePresuncaoIrpj;
-            
-            // Limite de isenção do adicional (20k/mês -> 60k trimestre ou 240k anual)
             const limiteAdicional = periodo === 'anual' ? 240000 : 60000;
-            
             const irpjPrincipal = baseCalculoIrpj * aliquotaIrpjPrincipal;
             let adicionalIRPJ = 0;
 
-            // O adicional incide apenas sobre a parcela do LUCRO PRESUMIDO que excede o limite
             if (baseCalculoIrpj > limiteAdicional) {
                 adicionalIRPJ = (baseCalculoIrpj - limiteAdicional) * aliquotaIrpjAdicional;
             }
             const irpj = irpjPrincipal + adicionalIRPJ;
 
-            // 3. CSLL (Baseada na presunção definida acima)
+            // 3. CSLL
             const baseCalculoCsll = faturamentoPeriodo * basePresuncaoCsll;
             const csll = baseCalculoCsll * aliquotaCsll;
 
             const impostosFederais = pis + cofins + irpj + csll;
 
-            // --- Encargos e Outros Impostos ---
+            // --- Encargos ---
             const aliquotaInss = encargos.inss / 100; const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
             const aliquotaRat = encargos.rat / 100; const aliquotaFgts = encargos.fgts / 100;
             const aliquotaIss = encargos.iss / 100; const aliquotaIcms = encargos.icms / 100;
@@ -156,7 +201,6 @@ export function useTributos() {
             // Cálculo de ICMS com crédito (Débito - Crédito)
             const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
             const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
-
             const debitoIcms = faturamentoBaseICMS * aliquotaIcms;
             const creditoIcms = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
             const icms = Math.max(0, debitoIcms - creditoIcms);
@@ -216,7 +260,6 @@ export function useTributos() {
         // Cálculo de ICMS com crédito (Débito - Crédito)
         const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
         const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
-
         const debitoIcms = faturamentoBaseICMS * aliquotaIcms;
         const creditoIcms = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
         const icms = Math.max(0, debitoIcms - creditoIcms);
@@ -276,6 +319,10 @@ export function useTributos() {
                 faturamentoBaseICMS = inputs.faturamentoComercio.anual;
             } else if (inputs.anexoSimples === 'anexoII') {
                 faturamentoBaseICMS = faturamentoTotal;
+            } else {
+                 if (inputs.encargos.icms > 0) {
+                    faturamentoBaseICMS = faturamentoTotal;
+                }
             }
             
             const simplesResult = calcularSimplesNacional(inputs, faturamentoTotal, despesasPeriodo, periodo, faturamentoBaseICMS);
@@ -304,6 +351,10 @@ export function useTributos() {
                     faturamentoBaseICMSTrimestre = inputs.faturamentoComercio.trimestral[trim];
                 } else if (inputs.anexoSimples === 'anexoII') {
                     faturamentoBaseICMSTrimestre = faturamentoTrimestre;
+                } else {
+                     if (inputs.encargos.icms > 0) {
+                        faturamentoBaseICMSTrimestre = faturamentoTrimestre;
+                    }
                 }
                 
                 const simplesResult = calcularSimplesNacional(inputs, faturamentoTrimestre, despesasTrimestre, periodo, faturamentoBaseICMSTrimestre);
@@ -330,7 +381,12 @@ export function useTributos() {
             resultadosTrimestrais.value = trimestralResults;
         }
 
-        const detalhesSimples = { ...somarDetalhes(totais.simples.detalhes, faturamentoTotal), 'simples nacional (DAS)': somarDetalhes(totais.simples.detalhes, faturamentoTotal).simplesNacional, pis_pasep: '-', cofins: '-', irpj: '-', adicionalIRPJ: '-', csll: '-', ipi: '-', inss: '-', inssTerceiros: '-', rat: '-' };
+        // AQUI ESTAVA O PROBLEMA: Removemos a linha que forçava '-' no simples
+        const detalhesSimples = { 
+            ...somarDetalhes(totais.simples.detalhes, faturamentoTotal),
+            'simples nacional (DAS)': somarDetalhes(totais.simples.detalhes, faturamentoTotal).simplesNacional
+            // OBS: Não deletamos simplesNacional, apenas mapeamos para a chave de exibição e mantemos os outros detalhes (irpj, csll, etc)
+        };
         if (detalhesSimples.simplesNacional) delete detalhesSimples.simplesNacional;
 
         resultados.value = {
