@@ -75,7 +75,14 @@ export function useTributos() {
         if (faturamentoTotalAnual > sublimite) {
             issForaDoSimples = faturamentoPeriodo * aliquotaIss;
             if (anexoSimples === 'anexoI' || anexoSimples === 'anexoII') {
-                icmsForaDoSimples = faturamentoBaseICMS * aliquotaIcms;
+                // Cálculo de ICMS com crédito (Débito - Crédito)
+                const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
+                const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
+
+                const debito = faturamentoBaseICMS * aliquotaIcms;
+                const credito = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
+                
+                icmsForaDoSimples = Math.max(0, debito - credito);
             }
         }
 
@@ -135,7 +142,7 @@ export function useTributos() {
 
             const impostosFederais = pis + cofins + irpj + csll;
 
-            // --- Encargos e Outros Impostos (Mantido a lógica original) ---
+            // --- Encargos e Outros Impostos ---
             const aliquotaInss = encargos.inss / 100; const aliquotaInssTerceiros = encargos.inssTerceiros / 100;
             const aliquotaRat = encargos.rat / 100; const aliquotaFgts = encargos.fgts / 100;
             const aliquotaIss = encargos.iss / 100; const aliquotaIcms = encargos.icms / 100;
@@ -144,11 +151,16 @@ export function useTributos() {
             const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
             const baseFolhaSalarios = despesasPeriodo.salarios;
             
-            // Ajuste: Se for comércio (Anexo I), geralmente não há ISS, mas sim ICMS.
-            // O código já lida com isso se você passar 0 no input de alíquota de ISS, 
-            // mas aqui calculamos conforme os inputs fornecidos.
             const iss = faturamentoPeriodo * aliquotaIss;
-            const icms = faturamentoBaseICMS * aliquotaIcms;
+            
+            // Cálculo de ICMS com crédito (Débito - Crédito)
+            const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
+            const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
+
+            const debitoIcms = faturamentoBaseICMS * aliquotaIcms;
+            const creditoIcms = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
+            const icms = Math.max(0, debitoIcms - creditoIcms);
+
             const ipi = faturamentoPeriodo * aliquotaIpi; 
             
             const inss = folhaTotal * aliquotaInss;
@@ -164,9 +176,9 @@ export function useTributos() {
             const detalhes = {
                 pis_pasep: { aliquota: aliquotaPis * 100, valor: pis },
                 cofins: { aliquota: aliquotaCofins * 100, valor: cofins },
-                irpj: { aliquota: basePresuncaoIrpj * aliquotaIrpjPrincipal * 100, valor: irpjPrincipal }, // Exibe a alíquota efetiva sobre o faturamento
+                irpj: { aliquota: basePresuncaoIrpj * aliquotaIrpjPrincipal * 100, valor: irpjPrincipal },
                 adicionalIRPJ: { aliquota: aliquotaAdicionalIRPJFaturamento * 100, valor: adicionalIRPJ },
-                csll: { aliquota: basePresuncaoCsll * aliquotaCsll * 100, valor: csll }, // Exibe a alíquota efetiva sobre o faturamento
+                csll: { aliquota: basePresuncaoCsll * aliquotaCsll * 100, valor: csll },
                 ipi: { aliquota: aliquotaIpi * 100, valor: ipi }, 
                 iss: { aliquota: aliquotaIss * 100, valor: iss },
                 icms: { aliquota: faturamentoBaseICMS > 0 ? aliquotaIcms * 100 : 0, valor: icms }, 
@@ -174,7 +186,6 @@ export function useTributos() {
                 inssTerceiros: { aliquota: aliquotaInssTerceiros * 100, valor: inssTerceiros },
                 rat: { aliquota: aliquotaRat * 100, valor: rat }, 
                 fgts: { aliquota: aliquotaFgts * 100, valor: fgts },
-                // Debug info (opcional, ajuda a confirmar se usou a base certa)
                 infoBase: isComercio ? 'Comércio (8%/12%)' : 'Serviço (32%)' 
             };
             return { valorImpostos, detalhes };
@@ -201,7 +212,15 @@ export function useTributos() {
         const folhaTotal = despesasPeriodo.salarios + despesasPeriodo.proLabore;
         const baseFolhaSalarios = despesasPeriodo.salarios;
         const iss = faturamentoPeriodo * aliquotaIss;
-        const icms = faturamentoBaseICMS * aliquotaIcms;
+        
+        // Cálculo de ICMS com crédito (Débito - Crédito)
+        const aliquotaInterna = (encargos.icmsInterno || 0) / 100;
+        const aliquotaInterestadual = (encargos.icmsInterestadual || 0) / 100;
+
+        const debitoIcms = faturamentoBaseICMS * aliquotaIcms;
+        const creditoIcms = (despesasPeriodo.comprasInternas * aliquotaInterna) + (despesasPeriodo.comprasInterestaduais * aliquotaInterestadual);
+        const icms = Math.max(0, debitoIcms - creditoIcms);
+
         const ipi = faturamentoPeriodo * aliquotaIpi; const inss = folhaTotal * aliquotaInss;
         const inssTerceiros = baseFolhaSalarios * aliquotaInssTerceiros; const rat = baseFolhaSalarios * aliquotaRat;
         const fgts = baseFolhaSalarios * aliquotaFgts;
