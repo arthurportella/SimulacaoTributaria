@@ -41,6 +41,8 @@ Através de uma interface moderna e responsiva, o usuário insere dados de fatur
 ---
 
 📂 Estrutura de Pastas
+
+```text
 src/
 ├── components/        # Componentes Vue reutilizáveis (Header, Modal, Gráficos)
 ├── composables/       # Lógica reativa (Hooks) - useAuth, useTributos, useTheme
@@ -48,7 +50,7 @@ src/
 ├── utils/             # Funções utilitárias (Formatadores de moeda, máscaras)
 ├── App.vue            # Componente Raiz
 └── main.js            # Ponto de entrada
-
+```
 ---
 ## 🛠️ Tecnologias Utilizadas
 
