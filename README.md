@@ -65,6 +65,15 @@ O projeto foi desenvolvido utilizando as melhores práticas do ecossistema Vue.j
 
 ---
 
+## 📝 Licença
+
+Este projeto está licenciado sob a **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
+Isso significa que você pode baixar e compartilhar o código para fins de estudo, mas **não pode usá-lo para fins comerciais** (vender ou cobrar acesso).
+
+Veja o resumo da licença [aqui](https://creativecommons.org/licenses/by-nc/4.0/deed.pt_BR).
+
+---
+
 <div align="center">
   <sub>Desenvolvido por <a href="https://github.com/arthurportella" target="_blank">Arthur Portella</a>.</sub>
 </div>
