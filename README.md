@@ -40,6 +40,16 @@ Através de uma interface moderna e responsiva, o usuário insere dados de fatur
 
 ---
 
+📂 Estrutura de Pastas
+src/
+├── components/        # Componentes Vue reutilizáveis (Header, Modal, Gráficos)
+├── composables/       # Lógica reativa (Hooks) - useAuth, useTributos, useTheme
+├── firebase/          # Configuração e inicialização do Firebase
+├── utils/             # Funções utilitárias (Formatadores de moeda, máscaras)
+├── App.vue            # Componente Raiz
+└── main.js            # Ponto de entrada
+
+---
 ## 🛠️ Tecnologias Utilizadas
 
 O projeto foi desenvolvido utilizando as melhores práticas do ecossistema Vue.js:
@@ -55,17 +65,6 @@ O projeto foi desenvolvido utilizando as melhores práticas do ecossistema Vue.j
 
 ---
 
-## 📦 Como Rodar o Projeto
-
-### Pré-requisitos
-
-Antes de começar, você precisa ter instalado em sua máquina:
-* [Git](https://git-scm.com)
-* [Node.js](https://nodejs.org/en/) (Versão 14 ou superior)
-
-### Passo a Passo
-
-1. **Clone o repositório**
-   ```bash
-   git clone https://github.com/arthurportella/SimulacaoTributaria.git
-   cd simulador-tributario
+<div align="center">
+  <sub>Desenvolvido por <a href="https://github.com/arthurportella" target="_blank">Arthur Portella</a>.</sub>
+</div>
