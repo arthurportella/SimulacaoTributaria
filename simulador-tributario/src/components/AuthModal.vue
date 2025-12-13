@@ -82,7 +82,6 @@ import { useAuth } from '../composables/useAuth';
 defineProps(['isOpen']);
 const emit = defineEmits(['close']);
 
-// Pegamos o novo método loginWithGoogle
 const { login, signup, loginWithGoogle, authError } = useAuth();
 
 const isLogin = ref(true);
@@ -90,13 +89,8 @@ const loading = ref(false);
 const passwordError = ref(null);
 
 const form = reactive({
-    name: '',
-    phone: '',
-    city: '',
-    state: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    name: '', phone: '', city: '', state: '',
+    email: '', password: '', confirmPassword: ''
 });
 
 function close() {
@@ -125,16 +119,12 @@ function formatPhone(event) {
     form.phone = value;
 }
 
-// Handler do Google
 async function handleGoogleLogin() {
     loading.value = true;
     passwordError.value = null;
     await loginWithGoogle();
     loading.value = false;
-    
-    if (!authError.value) {
-        close();
-    }
+    if (!authError.value) close();
 }
 
 async function handleSubmit() {
@@ -146,8 +136,7 @@ async function handleSubmit() {
     } else {
         if (form.password !== form.confirmPassword) {
             passwordError.value = "As senhas não coincidem.";
-            loading.value = false;
-            return;
+            loading.value = false; return;
         }
         await signup(form.email, form.password, {
             name: form.name, phone: form.phone, city: form.city, state: form.state.toUpperCase()
@@ -155,51 +144,11 @@ async function handleSubmit() {
     }
     
     loading.value = false;
-    if (!authError.value && !passwordError.value) {
-        close();
-    }
+    if (!authError.value && !passwordError.value) close();
 }
 </script>
 
 <style scoped>
-/* Mesmos estilos de antes, mais esses novos: */
-
-.google-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    background-color: #fff;
-    color: #3c4043;
-    border: 1px solid #dadce0;
-    padding: 0.6rem;
-    border-radius: 8px;
-    font-weight: 500;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 1.5rem;
-}
-.google-btn:hover { background-color: #f8f9fa; border-color: #d2e3fc; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.google-icon { width: 20px; height: 20px; }
-
-.divider {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: var(--cor-texto-suave);
-    font-size: 0.85rem;
-}
-.divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid var(--cor-borda);
-}
-.divider span { padding: 0 10px; }
-
-/* REPETINDO ESTILOS ANTERIORES PARA NÃO QUEBRAR O MODAL */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(2px); }
 .modal-content { background: var(--cor-card); padding: 2rem; border-radius: 16px; width: 95%; max-width: 450px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; max-height: 90vh; overflow-y: auto; }
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -220,4 +169,10 @@ h2 { margin-top: 0; text-align: center; color: var(--cor-primaria); margin-botto
 .switch-mode a { color: var(--cor-primaria); text-decoration: none; font-weight: 600; margin-left: 5px; }
 .switch-mode a:hover { text-decoration: underline; }
 .error-msg { background-color: #ffebee; color: #c62828; padding: 0.6rem; border-radius: 6px; font-size: 0.85rem; text-align: center; margin-bottom: 1rem; border: 1px solid #ffcdd2; }
+.google-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background-color: #fff; color: #3c4043; border: 1px solid #dadce0; padding: 0.6rem; border-radius: 8px; font-weight: 500; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; margin-bottom: 1.5rem; }
+.google-btn:hover { background-color: #f8f9fa; border-color: #d2e3fc; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.google-icon { width: 20px; height: 20px; }
+.divider { display: flex; align-items: center; text-align: center; margin-bottom: 1.5rem; color: var(--cor-texto-suave); font-size: 0.85rem; }
+.divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--cor-borda); }
+.divider span { padding: 0 10px; }
 </style>

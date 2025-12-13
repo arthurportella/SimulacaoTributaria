@@ -6,10 +6,10 @@ import {
     signOut, 
     onAuthStateChanged,
     updateProfile,
-    GoogleAuthProvider,     // <--- NOVO
-    signInWithPopup         // <--- NOVO
+    GoogleAuthProvider,
+    signInWithPopup
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore'; // getDoc para verificar se já existe
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const user = ref(null);
 const authError = ref(null);
@@ -57,7 +57,6 @@ export function useAuth() {
         }
     };
 
-    // --- NOVA FUNÇÃO: LOGIN COM GOOGLE ---
     const loginWithGoogle = async () => {
         authError.value = null;
         try {
@@ -65,11 +64,9 @@ export function useAuth() {
             const res = await signInWithPopup(auth, provider);
             
             if (res.user) {
-                // Verifica se esse usuário já tem dados no Firestore
                 const userDocRef = doc(db, 'users', res.user.uid);
                 const userDocSnap = await getDoc(userDocRef);
 
-                // Se não tiver (é o primeiro login), cria o documento básico
                 if (!userDocSnap.exists()) {
                     await setDoc(userDocRef, {
                         name: res.user.displayName,
@@ -77,7 +74,6 @@ export function useAuth() {
                         photoURL: res.user.photoURL,
                         createdAt: Date.now(),
                         method: 'google'
-                        // Telefone e Cidade ficam em branco por enquanto, sem problemas
                     });
                 }
                 user.value = res.user;
@@ -102,7 +98,7 @@ export function useAuth() {
             case 'auth/weak-password': return 'A senha deve ter pelo menos 6 caracteres.';
             case 'auth/user-not-found': return 'Usuário não encontrado.';
             case 'auth/wrong-password': return 'Senha incorreta.';
-            case 'auth/popup-closed-by-user': return 'Login cancelado (janela fechada).';
+            case 'auth/popup-closed-by-user': return 'Login cancelado.';
             default: return 'Ocorreu um erro. Tente novamente.';
         }
     };

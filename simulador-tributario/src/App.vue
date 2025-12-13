@@ -53,8 +53,7 @@ import { parseNumber } from './utils/formatters.js';
 import AuthModal from './components/AuthModal.vue';
 import { useAuth } from './composables/useAuth.js';
 import { db } from './firebase/config';
-// REMOVIDO: 'orderBy' da importação para evitar erro de índice
-import { collection, addDoc, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 // Componentes UI
 import AppHeader from './components/AppHeader.vue';
@@ -112,35 +111,22 @@ const encargosConfig = [
 // Funções
 function updateInputs(newValues) { Object.assign(inputs, newValues); }
 
-function resetForm() {
-  Object.assign(inputs, defaultInputs);
-  resultados.value = null;
-  triggerToast('Formulário limpo!');
-}
-
 function getNumericInputs() {
   const numeric = JSON.parse(JSON.stringify(inputs));
   numeric.faturamentoAnual = parseNumber(inputs.faturamentoAnual);
   numeric.rbt12 = parseNumber(inputs.rbt12);
-  
   for (const t in numeric.faturamentosTrimestrais) numeric.faturamentosTrimestrais[t] = parseNumber(numeric.faturamentosTrimestrais[t]);
-  
   numeric.faturamentoComercio.anual = parseNumber(inputs.faturamentoComercio.anual);
   for (const t in numeric.faturamentoComercio.trimestral) numeric.faturamentoComercio.trimestral[t] = parseNumber(numeric.faturamentoComercio.trimestral[t]);
-
   numeric.faturamentoComercioST.anual = parseNumber(inputs.faturamentoComercioST.anual);
   for (const t in numeric.faturamentoComercioST.trimestral) numeric.faturamentoComercioST.trimestral[t] = parseNumber(numeric.faturamentoComercioST.trimestral[t]);
-
   for (const key in numeric.despesasAnual) numeric.despesasAnual[key] = parseNumber(numeric.despesasAnual[key]);
-  
   for (const t in numeric.despesasTrimestrais) {
     for (const key in numeric.despesasTrimestrais[t]) {
       numeric.despesasTrimestrais[t][key] = parseNumber(numeric.despesasTrimestrais[t][key]);
     }
   }
-  
   for (const key in numeric.encargos) numeric.encargos[key] = parseNumber(numeric.encargos[key]);
-  
   return numeric;
 }
 
@@ -154,9 +140,18 @@ function handlePDF() {
   generatePDF(resultados.value, inputs, tributosDetalhados, melhorRegime.value, periodo.value);
 }
 
-// Histórico
+// Histórico e Estado de Edição
 const simulationName = ref('');
 const history = ref([]);
+const editingId = ref(null); // ID da simulação sendo editada
+
+function resetForm() {
+  Object.assign(inputs, defaultInputs);
+  resultados.value = null;
+  simulationName.value = '';
+  editingId.value = null; // Reseta o ID para criar novo
+  triggerToast('Formulário limpo!');
+}
 
 watch(user, async (newUser) => {
     if (newUser) {
@@ -175,18 +170,13 @@ function loadLocalHistory() {
 async function loadCloudHistory() {
     if (!user.value) return;
     try {
-        // CORREÇÃO AQUI: Removemos o orderBy da query
         const q = query(
             collection(db, 'simulacoes'), 
             where('userId', '==', user.value.uid)
         );
-        
         const querySnapshot = await getDocs(q);
         const docs = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        
-        // CORREÇÃO AQUI: Ordenamos no Javascript
-        history.value = docs.sort((a, b) => b.timestamp - a.timestamp);
-        
+        history.value = docs.sort((a, b) => b.timestamp - a.timestamp); // Ordenação via JS
     } catch (e) {
         console.error("Erro ao carregar da nuvem:", e);
         triggerToast("Erro ao carregar histórico.");
@@ -208,20 +198,36 @@ async function saveSimulation() {
 
   if (user.value) {
       try {
-          const docData = { ...snapshot, userId: user.value.uid };
-          const docRef = await addDoc(collection(db, "simulacoes"), docData);
-          history.value.unshift({ ...docData, id: docRef.id });
-          triggerToast('Simulação salva na nuvem!');
+          if (editingId.value) {
+              // ATUALIZAR EXISTENTE
+              const docRef = doc(db, "simulacoes", editingId.value);
+              await updateDoc(docRef, snapshot);
+              
+              // Atualiza lista local
+              const index = history.value.findIndex(item => item.id === editingId.value);
+              if (index !== -1) {
+                  history.value[index] = { ...snapshot, id: editingId.value, userId: user.value.uid };
+                  history.value.sort((a, b) => b.timestamp - a.timestamp);
+              }
+              triggerToast('Simulação atualizada!');
+          } else {
+              // CRIAR NOVA
+              const docData = { ...snapshot, userId: user.value.uid };
+              const docRef = await addDoc(collection(db, "simulacoes"), docData);
+              history.value.unshift({ ...docData, id: docRef.id });
+              editingId.value = docRef.id; 
+              triggerToast('Nova simulação salva!');
+          }
       } catch (e) {
+          console.error(e);
           triggerToast('Erro ao salvar na nuvem.');
       }
   } else {
+      // Modo Local
       history.value.unshift(snapshot);
       localStorage.setItem('simulationHistory', JSON.stringify(history.value));
-      triggerToast('Salvo no dispositivo. Entre para salvar na nuvem!');
+      triggerToast('Salvo no dispositivo.');
   }
-  
-  simulationName.value = '';
 }
 
 function loadSimulation(index) {
@@ -229,6 +235,9 @@ function loadSimulation(index) {
   Object.assign(inputs, snapshot.inputs);
   if (snapshot.periodo) periodo.value = snapshot.periodo;
   resultados.value = snapshot.results;
+  simulationName.value = snapshot.name;
+  editingId.value = snapshot.id; // Define o ID para edição
+  
   triggerToast(`Simulação "${snapshot.name}" carregada.`);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -241,6 +250,7 @@ async function deleteSimulation(index) {
       try {
           await deleteDoc(doc(db, "simulacoes", item.id));
           history.value.splice(index, 1);
+          if (editingId.value === item.id) editingId.value = null; // Se deletar a atual, reseta edição
           triggerToast('Excluído da nuvem.');
       } catch (e) {
           triggerToast('Erro ao excluir.');
