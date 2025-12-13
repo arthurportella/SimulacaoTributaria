@@ -1,6 +1,6 @@
 <template>
   <div id="app-container">
-    <AppHeader />
+    <AppHeader @open-login="openLogin" />
 
     <FormInputs
       :modelValue="inputs"
@@ -39,16 +39,24 @@
     />
     <AppFooter />
     <ToastNotification :show="showToast" :message="toastMessage" />
+    
+    <AuthModal :is-open="isLoginOpen" @close="isLoginOpen = false" />
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { useTributos } from './composables/useTributos.js';
 import { usePDFGenerator } from './composables/usePDFGenerator.js';
 import { parseNumber } from './utils/formatters.js';
 
-// Componentes
+import AuthModal from './components/AuthModal.vue';
+import { useAuth } from './composables/useAuth.js';
+import { db } from './firebase/config';
+// REMOVIDO: 'orderBy' da importação para evitar erro de índice
+import { collection, addDoc, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+
+// Componentes UI
 import AppHeader from './components/AppHeader.vue';
 import FormInputs from './components/FormInputs.vue';
 import ActionButtons from './components/ActionButtons.vue';
@@ -59,11 +67,17 @@ import SimulationHistory from './components/SimulationHistory.vue';
 import AppFooter from './components/AppFooter.vue';
 import ToastNotification from './components/ToastNotification.vue';
 
+// Auth
+const { user } = useAuth();
+const isLoginOpen = ref(false);
+function openLogin() { isLoginOpen.value = true; }
+
+// Dados
 const periodo = ref('anual');
 const { resultados, simularImpostos, rankedResults, melhorRegime } = useTributos();
 const { generatePDF } = usePDFGenerator();
 
-// --- Configurações Defaults ---
+// Configurações
 const despesaTemplate = { proLabore: '0,00', salarios: '395.000,00', comprasInternas: '0,00', comprasInterestaduais: '0,00', comprasImportadas: '0,00', insumoServicos: '0,00', energiaAluguelFretes: '13.500,00', depreciacao: '31.500,00', demaisDespesas: '322.000,00' };
 
 const defaultInputs = {
@@ -82,6 +96,20 @@ const defaultInputs = {
 
 const inputs = reactive(JSON.parse(JSON.stringify(defaultInputs)));
 
+// Configurações de Labels
+const tributosDetalhados = [ 
+  { key: 'pis_pasep', nome: 'PIS/PASEP' }, { key: 'cofins', nome: 'COFINS' }, { key: 'irpj', nome: 'IRPJ' }, { key: 'adicionalIRPJ', nome: 'ADICIONAL IRPJ' }, { key: 'csll', nome: 'CSLL' }, { key: 'iss', nome: 'ISS' }, { key: 'icms', nome: 'ICMS' }, { key: 'ipi', nome: 'IPI' }, { key: 'inss', nome: 'INSS (Patronal)' }, { key: 'inssTerceiros', nome: 'INSS Terceiros' }, { key: 'rat', nome: 'RAT' }, { key: 'fgts', nome: 'FGTS' }
+];
+
+const despesasConfig = [ 
+  { key: 'salarios', label: 'Salários' }, { key: 'proLabore', label: 'Pró-Labore' }, { key: 'comprasInternas', label: 'Compras Internas' }, { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, { key: 'comprasImportadas', label: 'Compras Importadas' }, { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, { key: 'depreciacao', label: 'Depreciação' }, { key: 'demaisDespesas', label: 'Demais Despesas' } 
+];
+
+const encargosConfig = [ 
+    { key: 'iss', label: 'ISS' }, { key: 'icms', label: 'ICMS' }, { key: 'ipi', label: 'IPI' }, { key: 'inss', label: 'INSS Patronal' }, { key: 'inssTerceiros', label: 'INSS Terceiros' }, { key: 'rat', label: 'RAT' }, { key: 'fgts', label: 'FGTS' }, { key: 'icmsInterno', label: 'ICMS Interno' }, { key: 'icmsInterestadual', label: 'ICMS Interestadual' }, { key: 'icmsImportacao', label: 'ICMS Importação' }, { key: 'ipiEntrada', label: 'IPI Entrada' }
+];
+
+// Funções
 function updateInputs(newValues) { Object.assign(inputs, newValues); }
 
 function resetForm() {
@@ -126,83 +154,107 @@ function handlePDF() {
   generatePDF(resultados.value, inputs, tributosDetalhados, melhorRegime.value, periodo.value);
 }
 
-const showToast = ref(false);
-const toastMessage = ref('');
-function triggerToast(msg) { toastMessage.value = msg; showToast.value = true; setTimeout(() => showToast.value = false, 3000); }
-
+// Histórico
 const simulationName = ref('');
 const history = ref([]);
 
-onMounted(() => {
-  const savedHistory = localStorage.getItem('simulationHistory');
-  if (savedHistory) { history.value = JSON.parse(savedHistory); }
-});
+watch(user, async (newUser) => {
+    if (newUser) {
+        await loadCloudHistory();
+    } else {
+        loadLocalHistory();
+    }
+}, { immediate: true });
 
-function saveSimulation() {
-  if (!simulationName.value.trim() || !resultados.value) { triggerToast('Dê um nome para a simulação.'); return; }
-  const snapshot = { name: simulationName.value, timestamp: Date.now(), inputs: JSON.parse(JSON.stringify(inputs)), results: JSON.parse(JSON.stringify(resultados.value)) };
-  history.value.unshift(snapshot);
-  localStorage.setItem('simulationHistory', JSON.stringify(history.value));
+function loadLocalHistory() {
+    const saved = localStorage.getItem('simulationHistory');
+    if (saved) history.value = JSON.parse(saved);
+    else history.value = [];
+}
+
+async function loadCloudHistory() {
+    if (!user.value) return;
+    try {
+        // CORREÇÃO AQUI: Removemos o orderBy da query
+        const q = query(
+            collection(db, 'simulacoes'), 
+            where('userId', '==', user.value.uid)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const docs = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        
+        // CORREÇÃO AQUI: Ordenamos no Javascript
+        history.value = docs.sort((a, b) => b.timestamp - a.timestamp);
+        
+    } catch (e) {
+        console.error("Erro ao carregar da nuvem:", e);
+        triggerToast("Erro ao carregar histórico.");
+    }
+}
+
+async function saveSimulation() {
+  if (!simulationName.value.trim() || !resultados.value) { 
+      triggerToast('Dê um nome para a simulação.'); return; 
+  }
+
+  const snapshot = { 
+      name: simulationName.value, 
+      timestamp: Date.now(), 
+      inputs: JSON.parse(JSON.stringify(inputs)), 
+      results: JSON.parse(JSON.stringify(resultados.value)),
+      periodo: periodo.value
+  };
+
+  if (user.value) {
+      try {
+          const docData = { ...snapshot, userId: user.value.uid };
+          const docRef = await addDoc(collection(db, "simulacoes"), docData);
+          history.value.unshift({ ...docData, id: docRef.id });
+          triggerToast('Simulação salva na nuvem!');
+      } catch (e) {
+          triggerToast('Erro ao salvar na nuvem.');
+      }
+  } else {
+      history.value.unshift(snapshot);
+      localStorage.setItem('simulationHistory', JSON.stringify(history.value));
+      triggerToast('Salvo no dispositivo. Entre para salvar na nuvem!');
+  }
+  
   simulationName.value = '';
-  triggerToast('Simulação salva!');
 }
 
 function loadSimulation(index) {
   const snapshot = history.value[index];
   Object.assign(inputs, snapshot.inputs);
+  if (snapshot.periodo) periodo.value = snapshot.periodo;
   resultados.value = snapshot.results;
   triggerToast(`Simulação "${snapshot.name}" carregada.`);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function deleteSimulation(index) {
-  if (confirm('Excluir esta simulação?')) {
-    history.value.splice(index, 1);
-    localStorage.setItem('simulationHistory', JSON.stringify(history.value));
-    triggerToast('Simulação excluída.');
+async function deleteSimulation(index) {
+  const item = history.value[index];
+  if (!confirm(`Excluir a simulação "${item.name}"?`)) return;
+
+  if (user.value && item.id) {
+      try {
+          await deleteDoc(doc(db, "simulacoes", item.id));
+          history.value.splice(index, 1);
+          triggerToast('Excluído da nuvem.');
+      } catch (e) {
+          triggerToast('Erro ao excluir.');
+      }
+  } else {
+      history.value.splice(index, 1);
+      localStorage.setItem('simulationHistory', JSON.stringify(history.value));
+      triggerToast('Simulação excluída.');
   }
 }
 
-// Configurações de Labels e Inputs
-const tributosDetalhados = [ 
-  { key: 'pis_pasep', nome: 'PIS/PASEP' }, 
-  { key: 'cofins', nome: 'COFINS' }, 
-  { key: 'irpj', nome: 'IRPJ' }, 
-  { key: 'adicionalIRPJ', nome: 'ADICIONAL IRPJ' }, 
-  { key: 'csll', nome: 'CSLL' }, 
-  { key: 'iss', nome: 'ISS' }, 
-  { key: 'icms', nome: 'ICMS' }, 
-  { key: 'ipi', nome: 'IPI' }, 
-  { key: 'inss', nome: 'INSS (Patronal)' }, 
-  { key: 'inssTerceiros', nome: 'INSS Terceiros' }, 
-  { key: 'rat', nome: 'RAT' }, 
-  { key: 'fgts', nome: 'FGTS' },
-];
-
-const despesasConfig = [ 
-  { key: 'salarios', label: 'Salários' }, 
-  { key: 'proLabore', label: 'Pró-Labore' }, 
-  { key: 'comprasInternas', label: 'Compras Internas' }, 
-  { key: 'comprasInterestaduais', label: 'Compras Interestaduais' }, 
-  { key: 'comprasImportadas', label: 'Compras Importadas' },      
-  { key: 'insumoServicos', label: 'Insumo para Prest. Serviços' }, 
-  { key: 'energiaAluguelFretes', label: 'Energia/Aluguel/Fretes' }, 
-  { key: 'depreciacao', label: 'Depreciação' }, 
-  { key: 'demaisDespesas', label: 'Demais Despesas' } 
-];
-
-const encargosConfig = [ 
-    { key: 'iss', label: 'ISS' }, 
-    { key: 'icms', label: 'ICMS' }, 
-    { key: 'ipi', label: 'IPI' }, 
-    { key: 'inss', label: 'INSS Patronal' }, 
-    { key: 'inssTerceiros', label: 'INSS Terceiros' }, 
-    { key: 'rat', label: 'RAT' }, 
-    { key: 'fgts', label: 'FGTS' }, 
-    { key: 'icmsInterno', label: 'ICMS Interno' },
-    { key: 'icmsInterestadual', label: 'ICMS Interestadual' },
-    { key: 'icmsImportacao', label: 'ICMS Importação' },
-    { key: 'ipiEntrada', label: 'IPI Entrada' }
-];
+const showToast = ref(false);
+const toastMessage = ref('');
+function triggerToast(msg) { toastMessage.value = msg; showToast.value = true; setTimeout(() => showToast.value = false, 3000); }
 </script>
 
 <style scoped>
